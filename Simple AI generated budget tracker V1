@@ -1,0 +1,30 @@
+class BudgetTracker:
+    def __init__(self, monthly_budget):
+        self.monthly_budget = monthly_budget
+        self.expenses = []
+
+    def add_expense(self, name, amount):
+        self.expenses.append({'name': name, 'amount': amount})
+        print(f"Added expense: {name} - ${amount:.2f}")
+
+    def total_expenses(self):
+        return sum(expense['amount'] for expense in self.expenses)
+
+    def remaining_budget(self):
+        return self.monthly_budget - self.total_expenses()
+
+    def show_summary(self):
+        print("\n--- Budget Summary ---")
+        print(f"Monthly Budget: ${self.monthly_budget:.2f}")
+        print("Expenses:")
+        for expense in self.expenses:
+            print(f"  {expense['name']}: ${expense['amount']:.2f}")
+        print(f"Total Expenses: ${self.total_expenses():.2f}")
+        print(f"Remaining Budget: ${self.remaining_budget():.2f}")
+
+# Example usage
+tracker = BudgetTracker(1000)  # Set your monthly budget here
+tracker.add_expense("Groceries", 150)
+tracker.add_expense("Electricity Bill", 60)
+tracker.add_expense("Netflix", 20)
+tracker.show_summary()
