@@ -1,0 +1,168 @@
+import datetime
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+
+def display_menu():
+    """
+    Displays the main menu options to the user.
+    """
+    print("\nBudget Tracker Menu:")
+    print("1. Add Income")
+    print("2. Add Expense")
+    print("3. View Budget Summary")
+    print("4. View Transactions")
+    print("5. View Budget Visualization")  # Added option for visualization
+    print("6. Exit")
+
+def get_valid_input(prompt, data_type, min_value=None, max_value=None):
+    """
+    Gets user input with validation.  Handles potential errors and ensures
+    the input is of the correct type and within a specified range.
+
+    Args:
+        prompt (str): The message displayed to the user.
+        data_type (type): The expected data type (e.g., int, float).
+        min_value (float, optional): The minimum allowed value. Defaults to None.
+        max_value (float, optional): The maximum allowed value. Defaults to None.
+
+    Returns:
+        any: The validated user input.  Returns None on error.
+    """
+    while True:
+        try:
+            value = data_type(input(prompt))  # Get input and convert to the specified type
+            if min_value is not None and value < min_value:
+                print(f"Error: Value must be greater than or equal to {min_value}.")
+            elif max_value is not None and value > max_value:
+                print(f"Error: Value must be less than or equal to {max_value}.")
+            else:
+                return value  # Input is valid, return it
+        except ValueError:
+            print("Invalid input. Please enter a number.")  # Handle non-numeric input
+        except TypeError: #Catch other type errors.
+            print("Invalid input type.")
+
+def add_income(budget):
+    """
+    Adds income to the budget.
+
+    Args:
+        budget (dict): The dictionary containing budget data.
+    """
+    amount = get_valid_input("Enter income amount: ", float, 0) # Ensure amount is positive
+    source = input("Enter income source: ")
+    date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # Store date and time
+    budget['income'] += amount
+    budget['transactions'].append({'type': 'income', 'amount': amount, 'source': source, 'date': date})
+    print("Income added successfully.")
+
+def add_expense(budget):
+    """
+    Adds an expense to the budget.
+
+    Args:
+        budget (dict): The dictionary containing budget data.
+    """
+    amount = get_valid_input("Enter expense amount: ", float, 0) # Ensure amount is positive
+    category = input("Enter expense category: ")
+    date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") # Store date and time
+    budget['expenses'] += amount
+    budget['transactions'].append({'type': 'expense', 'amount': amount, 'category': category, 'date': date})
+    print("Expense added successfully.")
+
+def view_budget_summary(budget):
+    """
+    Displays the budget summary (income, expenses, and balance).
+
+    Args:
+        budget (dict): The dictionary containing budget data.
+    """
+    print("\nBudget Summary:")
+    print(f"Total Income: ${budget['income']:.2f}")  # Format to 2 decimal places
+    print(f"Total Expenses: ${budget['expenses']:.2f}")
+    balance = budget['income'] - budget['expenses']
+    print(f"Current Balance: ${balance:.2f}")
+
+def view_transactions(budget):
+    """
+    Displays all transactions (income and expenses).
+
+    Args:
+        budget (dict): The dictionary containing budget data.
+    """
+    print("\nTransactions:")
+    if not budget['transactions']:
+        print("No transactions recorded yet.")
+        return  # Exit if there are no transactions
+
+    for transaction in budget['transactions']:
+        if transaction['type'] == 'income':
+            print(f"Date: {transaction['date']}, Type: Income, Source: {transaction['source']}, Amount: ${transaction['amount']:.2f}")
+        elif transaction['type'] == 'expense':
+            print(f"Date: {transaction['date']}, Type: Expense, Category: {transaction['category']}, Amount: ${transaction['amount']:.2f}")
+
+def view_budget_visualization(budget):
+    """
+    Visualizes the budget data using matplotlib and seaborn.
+
+    Args:
+        budget (dict): The dictionary containing budget data.
+    """
+    if not budget['transactions']:
+        print("No transactions to visualize.")
+        return
+
+    # Convert transactions to a pandas DataFrame for easier manipulation
+    df = pd.DataFrame(budget['transactions'])
+    df['date'] = pd.to_datetime(df['date'])  # Convert date to datetime objects
+    df['amount'] = df['amount'].astype(float) # Ensure amount is numeric
+
+    # Create a figure with two subplots
+    fig, axes = plt.subplots(2, 1, figsize=(10, 8))  # 2 rows, 1 column
+
+    # Plot 1: Bar chart of income and expenses over time
+    sns.barplot(x='date', y='amount', hue='type', data=df, ax=axes[0])
+    axes[0].set_title('Income and Expenses Over Time')
+    axes[0].set_xlabel('Date')
+    axes[0].set_ylabel('Amount')
+    axes[0].tick_params(axis='x', rotation=45)  # Rotate x-axis labels for readability
+
+    # Plot 2: Pie chart of expenses by category
+    expense_df = df[df['type'] == 'expense'].copy() # Create a copy to avoid modifying original
+    if not expense_df.empty:
+        expense_df = expense_df.groupby('category')['amount'].sum().reset_index()
+        axes[1].pie(expense_df['amount'], labels=expense_df['category'], autopct='%1.1f%%', startangle=90)
+        axes[1].set_title('Expense Distribution by Category')
+    else:
+        axes[1].text(0.5, 0.5, 'No expenses to display', ha='center', va='center') #handles the case where there are no expenses
+    plt.tight_layout()  # Adjust layout to prevent overlapping
+    plt.show()
+
+def main():
+    """
+    Main function to run the budget tracker application.
+    Initializes the budget, displays the menu, and handles user input.
+    """
+    budget = {'income': 0, 'expenses': 0, 'transactions': []}  # Use a dictionary
+    while True:
+        display_menu()
+        choice = get_valid_input("Enter your choice (1-6): ", int, 1, 6) # Get choice and validate
+        if choice == 1:
+            add_income(budget)
+        elif choice == 2:
+            add_expense(budget)
+        elif choice == 3:
+            view_budget_summary(budget)
+        elif choice == 4:
+            view_transactions(budget)
+        elif choice == 5:
+            view_budget_visualization(budget) #call the visualization
+        elif choice == 6:
+            print("Exiting Budget Tracker. Goodbye!")
+            break  # Use break to exit the loop
+        else:
+            print("Invalid choice. Please try again.") #This part of the code will never be reached because the input is validated
+
+if __name__ == "__main__":
+    main()  # Call the main function to start the program
