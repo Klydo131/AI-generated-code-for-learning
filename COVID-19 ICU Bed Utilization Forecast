@@ -1,0 +1,318 @@
+# COVID-19 ICU Bed Utilization Forecast
+# Optimized for Google Colab - Fixed Type Error
+
+# Install required packages if needed
+!pip install -q pandas numpy plotly scikit-learn ipywidgets
+
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+from sklearn.linear_model import LinearRegression
+from datetime import datetime, timedelta
+import ipywidgets as widgets
+from IPython.display import display, HTML
+
+# Enable Plotly in Colab
+try:
+    from google.colab import output
+    output.enable_custom_widget_manager()
+    IN_COLAB = True
+except:
+    IN_COLAB = False
+
+# Display title
+display(HTML("<h1 style='color:#1f77b4; font-family:Arial;'>COVID-19 ICU Bed Utilization Forecast</h1>"))
+display(HTML("<p style='font-size:14px; color:#666;'>Interactive 30-day forecast using linear regression</p>"))
+
+# -----------------------------------------
+# DATA LOADING & PREPARATION
+# -----------------------------------------
+def load_covid_data():
+    """Load COVID-19 hospital utilization data from HealthData.gov"""
+    print("Loading COVID-19 hospital data...")
+    url = "https://healthdata.gov/resource/6xf2-c3ie.csv?$limit=500000"
+    
+    try:
+        df = pd.read_csv(url)
+        print("✅ Data loaded successfully!")
+        return df
+    except Exception as e:
+        print(f"❌ Error loading data: {e}")
+        return None
+
+def prepare_data(df):
+    """Prepare data for analysis by identifying columns and cleaning data"""
+    if df is None or df.empty:
+        print("❌ No data available.")
+        return None
+    
+    # Print available columns for debugging
+    print("Available columns:", df.columns.tolist())
+    
+    # Identify date column (likely 'date' or 'collection_week')
+    date_columns = [col for col in df.columns if any(term in col.lower() 
+                   for term in ['date', 'week', 'time', 'day'])]
+    
+    if not date_columns:
+        print("❌ Could not identify date column.")
+        return None
+    
+    date_col = date_columns[0]
+    print(f"✅ Using '{date_col}' as date column")
+    
+    # Identify hospital bed columns
+    covid_bed_cols = [col for col in df.columns if 'covid' in col.lower() 
+                     and any(term in col.lower() for term in ['inpatient', 'hospital', 'bed'])]
+    
+    total_bed_cols = [col for col in df.columns if any(term in col.lower() 
+                     for term in ['inpatient', 'hospital', 'bed']) 
+                     and 'covid' not in col.lower() and 'used' not in col.lower()]
+    
+    if not covid_bed_cols or not total_bed_cols:
+        print("❌ Could not identify required bed utilization columns.")
+        return None
+    
+    covid_bed_col = covid_bed_cols[0]
+    total_bed_col = total_bed_cols[0]
+    
+    print(f"✅ Using '{covid_bed_col}' for COVID beds and '{total_bed_col}' for total beds")
+    
+    # Create clean dataframe with required columns
+    clean_df = df[['state', date_col, covid_bed_col, total_bed_col]].copy()
+    clean_df.columns = ['state', 'date', 'covid_beds', 'total_beds']
+    
+    # Convert date column to datetime
+    clean_df['date'] = pd.to_datetime(clean_df['date'])
+    
+    # Convert numeric columns to float to ensure they're treated as numeric
+    # This fixes the "Could not convert string 'NY' to numeric" error
+    clean_df['covid_beds'] = pd.to_numeric(clean_df['covid_beds'], errors='coerce')
+    clean_df['total_beds'] = pd.to_numeric(clean_df['total_beds'], errors='coerce')
+    
+    # Remove rows with missing values
+    initial_rows = len(clean_df)
+    clean_df = clean_df.dropna()
+    print(f"✅ Removed {initial_rows - len(clean_df)} rows with missing values")
+    
+    # Calculate utilization
+    clean_df['utilization'] = clean_df['covid_beds'] / clean_df['total_beds']
+    
+    # Remove outliers (utilization > 1 or utilization < 0)
+    outliers = len(clean_df[(clean_df['utilization'] > 1) | (clean_df['utilization'] < 0)])
+    clean_df = clean_df[(clean_df['utilization'] >= 0) & (clean_df['utilization'] <= 1)]
+    print(f"✅ Removed {outliers} outliers with utilization outside [0,1]")
+    
+    # Show sample of processed data
+    print("\nSample of processed data:")
+    display(clean_df.head(3))
+    
+    return clean_df
+
+# -----------------------------------------
+# FORECAST MODEL
+# -----------------------------------------
+def create_forecast(data, state, forecast_days=30):
+    """Create a 30-day forecast for the selected state"""
+    # Filter data for the selected state
+    state_data = data[data['state'] == state].copy()
+    
+    if state_data.empty:
+        print(f"❌ No data available for {state}")
+        return None, None
+    
+    # Group by date if multiple entries per date
+    # Using a different approach to avoid the "Could not convert string 'NY' to numeric" error
+    grouped = state_data.groupby('date')
+    
+    # Create a new dataframe with the means for each date
+    # This avoids the direct aggregation that was causing the type error
+    state_data = pd.DataFrame({
+        'date': grouped.groups.keys(),
+        'covid_beds': grouped['covid_beds'].mean().values,
+        'total_beds': grouped['total_beds'].mean().values,
+        'utilization': grouped['utilization'].mean().values
+    })
+    
+    # Sort by date
+    state_data = state_data.sort_values('date')
+    
+    # Make sure there are enough data points for regression
+    if len(state_data) < 5:
+        print(f"❌ Not enough data points for {state} to create a reliable forecast")
+        return None, None
+    
+    # Convert dates to numeric values for regression
+    state_data['days'] = (state_data['date'] - state_data['date'].min()).dt.days
+    
+    # Prepare data for regression
+    X = state_data['days'].values.reshape(-1, 1)
+    y = state_data['utilization'].values
+    
+    # Create and fit the model
+    model = LinearRegression()
+    model.fit(X, y)
+    
+    # Calculate model score (R²)
+    r2 = model.score(X, y)
+    
+    # Prepare data for predictions
+    last_date = state_data['date'].max()
+    future_days = np.arange(state_data['days'].max() + 1, 
+                          state_data['days'].max() + forecast_days + 1)
+    future_dates = [last_date + timedelta(days=int(i-state_data['days'].max())) 
+                  for i in future_days]
+    
+    # Make predictions
+    future_utilization = model.predict(future_days.reshape(-1, 1))
+    
+    # Create forecast dataframe
+    forecast_df = pd.DataFrame({
+        'date': future_dates,
+        'utilization': future_utilization,
+        'type': 'forecast'
+    })
+    
+    # Add type column to historical data
+    state_data['type'] = 'historical'
+    
+    # Combine historical and forecast data
+    combined_df = pd.concat([
+        state_data[['date', 'utilization', 'type']],
+        forecast_df
+    ]).sort_values('date')
+    
+    return combined_df, r2
+
+# -----------------------------------------
+# VISUALIZATION
+# -----------------------------------------
+def plot_forecast(data, state, r2):
+    """Create an interactive plot of the forecast"""
+    if data is None:
+        return None
+    
+    # Create a color map for the data types
+    colors = {'historical': '#1f77b4', 'forecast': '#ff7f0e'}
+    
+    # Create figure
+    fig = go.Figure()
+    
+    # Add historical data
+    historical = data[data['type'] == 'historical']
+    fig.add_trace(go.Scatter(
+        x=historical['date'],
+        y=historical['utilization'],
+        mode='lines+markers',
+        name='Historical Data',
+        line=dict(color=colors['historical'], width=2),
+        marker=dict(size=6)
+    ))
+    
+    # Add forecast data
+    forecast = data[data['type'] == 'forecast']
+    fig.add_trace(go.Scatter(
+        x=forecast['date'],
+        y=forecast['utilization'],
+        mode='lines',
+        name='30-Day Forecast',
+        line=dict(color=colors['forecast'], width=2, dash='dash')
+    ))
+    
+    # Add vertical line to separate historical and forecast data
+    separation_date = historical['date'].max()
+    fig.add_vline(x=separation_date, line_width=1, line_dash="dash", line_color="gray")
+    
+    # Add annotations
+    fig.add_annotation(
+        x=separation_date + timedelta(days=15),
+        y=max(data['utilization']) * 0.9,
+        text=f"Forecast Period",
+        showarrow=False,
+        font=dict(color=colors['forecast'])
+    )
+    
+    # Update layout
+    fig.update_layout(
+        title=f"COVID-19 ICU Bed Utilization Forecast - {state}",
+        title_font=dict(size=22),
+        xaxis_title="Date",
+        yaxis_title="ICU Beds Used by COVID (%)",
+        yaxis_tickformat=".1%",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
+        margin=dict(l=40, r=40, t=80, b=40),
+        height=500,
+        template="plotly_white",
+        annotations=[
+            dict(
+                x=0.02,
+                y=0.98,
+                xref="paper",
+                yref="paper",
+                text=f"R² = {r2:.3f}",
+                showarrow=False,
+                font=dict(size=14)
+            )
+        ]
+    )
+    
+    return fig
+
+# -----------------------------------------
+# MAIN APPLICATION
+# -----------------------------------------
+# Load and prepare data
+raw_data = load_covid_data()
+clean_data = prepare_data(raw_data)
+
+if clean_data is None:
+    print("❌ Could not prepare data. Please check the data source.")
+else:
+    # Get available states
+    states = sorted(clean_data['state'].unique())
+    print(f"\n✅ Found data for {len(states)} states")
+    
+    # Default state
+    default_state = 'NY' if 'NY' in states else states[0]
+    
+    # Create a placeholder for plots
+    plot_output = widgets.Output()
+    
+    # Create dropdown widget for state selection
+    state_dropdown = widgets.Dropdown(
+        options=states,
+        value=default_state,
+        description='Select State:',
+        style={'description_width': 'initial'},
+        layout=widgets.Layout(width='300px')
+    )
+    
+    # Update function for when state changes
+    def update_plot(change):
+        selected_state = change['new']
+        with plot_output:
+            plot_output.clear_output(wait=True)
+            print(f"Generating forecast for {selected_state}...")
+            forecast_data, r2 = create_forecast(clean_data, selected_state)
+            if forecast_data is not None:
+                fig = plot_forecast(forecast_data, selected_state, r2)
+                fig.show()
+            else:
+                print(f"❌ Unable to create forecast for {selected_state}")
+    
+    # Register the update function
+    state_dropdown.observe(update_plot, names='value')
+    
+    # Display widgets
+    display(HTML("<h3>Select a state to view its 30-day ICU bed utilization forecast:</h3>"))
+    display(state_dropdown)
+    display(plot_output)
+    
+    # Trigger initial plot
+    update_plot({'new': default_state})
