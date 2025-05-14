@@ -1,0 +1,61 @@
+def word_sorting_system():
+    """
+    A simple word sorting system that takes user input and sorts words alphabetically.
+    """
+    print("Welcome to the Simple Word Sorting System!")
+    print("Enter words separated by spaces or commas, and I'll sort them alphabetically (A-Z).")
+    print("Type 'exit' to quit the program.\n")
+    
+    while True:
+        # Get user input
+        user_input = input("Enter words to sort (or 'exit' to quit): ")
+        
+        # Check if user wants to exit
+        if user_input.lower() == 'exit':
+            print("Thank you for using the Simple Word Sorting System. Goodbye!")
+            break
+        
+        # Handle both space and comma separated inputs
+        if ',' in user_input:
+            # Split by commas if present
+            words = [word.strip() for word in user_input.split(',')]
+        else:
+            # Otherwise split by spaces
+            words = user_input.split()
+        
+        if not words:
+            print("You didn't enter any words. Please try again.\n")
+            continue
+        
+        # Print original words
+        print("\nOriginal words:")
+        if ',' in user_input:
+            print(','.join(words))
+        else:
+            print(' '.join(words))
+        
+        # Manual sorting algorithm (basic selection sort)
+        sorted_words = []
+        temp_words = words.copy()  # Make a copy to avoid modifying the original
+        
+        while temp_words:
+            # Find the alphabetically smallest word
+            smallest_word = temp_words[0]
+            for word in temp_words:
+                if word.lower() < smallest_word.lower():
+                    smallest_word = word
+            
+            # Add it to our sorted list and remove from temp list
+            sorted_words.append(smallest_word)
+            temp_words.remove(smallest_word)
+        
+        # Display the sorted words
+        print("\nSorted words (ascending A-Z order):")
+        if ',' in user_input:
+            print(','.join(sorted_words))
+        else:
+            print(' '.join(sorted_words))
+        print()  # Add an empty line for better readability
+
+if __name__ == "__main__":
+    word_sorting_system()
