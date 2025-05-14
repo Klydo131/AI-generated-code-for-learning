@@ -1,0 +1,587 @@
+# Automated Trading System with Moving Average Crossover Strategy
+# Compatible with Google Colab
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import yfinance as yf
+from datetime import datetime, timedelta
+import time
+import warnings
+from typing import List, Dict, Union, Any, Optional
+warnings.filterwarnings('ignore')
+
+# Set up the visualization style
+sns.set(style="darkgrid")
+plt.rcParams['figure.figsize'] = (14, 8)
+
+class TradingSystem:
+    """
+    Automated trading system that implements a moving average crossover strategy.
+    The system can perform backtesting and real-time trading simulations.
+    """
+    
+    def __init__(self, 
+                 symbols: List[str] = ['AAPL', 'MSFT', 'GOOGL', 'AMZN'], 
+                 initial_capital: float = 10000, 
+                 short_window: int = 20, 
+                 long_window: int = 50,
+                 risk_per_trade: float = 0.02):
+        """
+        Initialize the trading system with stocks and parameters
+        
+        Parameters:
+        -----------
+        symbols : list
+            List of stock symbols to trade
+        initial_capital : float
+            Starting capital for the portfolio
+        short_window : int
+            Short moving average window (in days)
+        long_window : int
+            Long moving average window (in days)
+        risk_per_trade : float
+            Maximum risk per trade as a fraction of portfolio (e.g., 0.02 = 2%)
+        """
+        self.symbols = symbols
+        self.capital = initial_capital
+        self.initial_capital = initial_capital
+        self.positions = {symbol: 0 for symbol in symbols}
+        self.short_window = short_window
+        self.long_window = long_window
+        self.risk_per_trade = risk_per_trade
+        
+        # Performance tracking
+        self.portfolio_history = []
+        self.trade_history = []
+        
+        # Data storage
+        self.data = {}
+        
+        # Initial data load
+        self.update_data(initial_load=True)
+    
+    def update_data(self, initial_load: bool = False) -> None:
+        """
+        Fetch the latest stock data and calculate technical indicators
+        
+        Parameters:
+        -----------
+        initial_load : bool
+            If True, loads enough historical data for calculating indicators
+        """
+        end_date = datetime.now()
+        
+        # Determine how much historical data to fetch
+        if initial_load:
+            # For initial load, get enough history for the moving averages
+            # Use 2.5x to ensure we have enough data even with weekends/holidays
+            start_date = end_date - timedelta(days=int(self.long_window * 2.5))
+        else:
+            # For updates, just get the last few days
+            start_date = end_date - timedelta(days=5)
+        
+        for symbol in self.symbols:
+            try:
+                # Get data from Yahoo Finance
+                df = yf.download(symbol, start=start_date, end=end_date, progress=False)
+                
+                if df.empty:
+                    print(f"Warning: No data retrieved for {symbol}")
+                    continue
+                
+                if initial_load or symbol not in self.data:
+                    self.data[symbol] = df
+                else:
+                    # Update existing data (avoid duplicates)
+                    new_data = df[~df.index.isin(self.data[symbol].index)]
+                    if not new_data.empty:
+                        self.data[symbol] = pd.concat([self.data[symbol], new_data])
+                
+                # Calculate technical indicators
+                self._calculate_indicators(symbol)
+                
+            except Exception as e:
+                print(f"Error updating data for {symbol}: {e}")
+    
+    def _calculate_indicators(self, symbol: str) -> None:
+        """
+        Calculate technical indicators for a specific symbol
+        
+        Parameters:
+        -----------
+        symbol : str
+            The stock symbol to calculate indicators for
+        """
+        # Ensure we have data for this symbol
+        if symbol not in self.data or self.data[symbol].empty:
+            return
+            
+        df = self.data[symbol]
+        
+        # Calculate moving averages
+        df['SMA_short'] = df['Close'].rolling(window=self.short_window, min_periods=1).mean()
+        df['SMA_long'] = df['Close'].rolling(window=self.long_window, min_periods=1).mean()
+        
+        # Generate trading signals (1 for buy, -1 for sell, 0 for hold)
+        df['Signal'] = 0
+        df.loc[df['SMA_short'] > df['SMA_long'], 'Signal'] = 1
+        df.loc[df['SMA_short'] < df['SMA_long'], 'Signal'] = -1
+        
+        # Calculate crossovers (signal changes)
+        df['Position'] = df['Signal'].diff().fillna(0)
+        
+        # Update the dataframe
+        self.data[symbol] = df
+    
+    def calculate_position_size(self, symbol: str) -> int:
+        """
+        Calculate optimal position size based on risk management principles
+        
+        Parameters:
+        -----------
+        symbol : str
+            The stock symbol to calculate position size for
+            
+        Returns:
+        --------
+        int
+            Number of shares to buy/sell
+        """
+        # Safety check
+        if symbol not in self.data or self.data[symbol].empty:
+            return 0
+            
+        df = self.data[symbol]
+        current_price = df['Close'].iloc[-1]
+        
+        # Calculate volatility using Average True Range (ATR)
+        df['HL'] = df['High'] - df['Low']
+        df['HC'] = abs(df['High'] - df['Close'].shift())
+        df['LC'] = abs(df['Low'] - df['Close'].shift())
+        df['TR'] = df[['HL', 'HC', 'LC']].max(axis=1)
+        df['ATR'] = df['TR'].rolling(window=20, min_periods=1).mean()
+        
+        atr = df['ATR'].iloc[-1]
+        if pd.isna(atr) or atr == 0:
+            atr = current_price * 0.02  # Default to 2% of price if ATR is invalid
+        
+        # Risk-based position sizing: risk amount / stop loss size
+        risk_amount = self.capital * self.risk_per_trade
+        shares = int(risk_amount / atr)
+        
+        # Limit position to 10% of capital as a safety measure
+        max_position = 0.1 * self.capital
+        max_shares = int(max_position / current_price)
+        
+        return min(max(1, shares), max_shares)  # Ensure between 1 and max_shares
+    
+    def execute_trades(self) -> None:
+        """
+        Execute trades based on crossover signals from moving averages
+        """
+        for symbol in self.symbols:
+            # Skip if we don't have sufficient data
+            if symbol not in self.data or len(self.data[symbol]) < self.long_window:
+                continue
+                
+            df = self.data[symbol]
+            if df.empty:
+                continue
+                
+            latest_data = df.iloc[-1]
+            current_price = latest_data['Close']
+            position_change = latest_data['Position']
+            
+            # Skip invalid price or position data
+            if pd.isna(current_price) or pd.isna(position_change):
+                continue
+                
+            # Convert to scalar if needed
+            if isinstance(position_change, pd.Series):
+                position_change = position_change.iloc[0]
+                
+            # Buy signal (crossover from bearish to bullish)
+            if position_change == 2:
+                self._execute_buy(symbol, current_price, latest_data.name)
+                    
+            # Sell signal (crossover from bullish to bearish)
+            elif position_change == -2:
+                self._execute_sell(symbol, current_price, latest_data.name)
+                
+    def _execute_buy(self, symbol: str, price: float, timestamp) -> None:
+        """
+        Execute a buy order for a symbol
+        
+        Parameters:
+        -----------
+        symbol : str
+            The stock symbol to buy
+        price : float
+            Current price of the stock
+        timestamp : datetime
+            Time of the transaction
+        """
+        # Close any short positions first
+        if self.positions[symbol] < 0:
+            profit = -self.positions[symbol] * price
+            self.capital += profit
+            self.trade_history.append({
+                'timestamp': timestamp,
+                'symbol': symbol,
+                'action': 'Cover Short',
+                'price': price,
+                'shares': -self.positions[symbol],
+                'value': profit
+            })
+            self.positions[symbol] = 0
+        
+        # Calculate position size
+        shares_to_buy = self.calculate_position_size(symbol)
+        cost = shares_to_buy * price
+        
+        # Execute buy if we have enough capital
+        if cost <= self.capital and shares_to_buy > 0:
+            self.capital -= cost
+            self.positions[symbol] = shares_to_buy
+            self.trade_history.append({
+                'timestamp': timestamp,
+                'symbol': symbol,
+                'action': 'Buy',
+                'price': price,
+                'shares': shares_to_buy,
+                'value': cost
+            })
+            
+    def _execute_sell(self, symbol: str, price: float, timestamp) -> None:
+        """
+        Execute a sell order for a symbol
+        
+        Parameters:
+        -----------
+        symbol : str
+            The stock symbol to sell
+        price : float
+            Current price of the stock
+        timestamp : datetime
+            Time of the transaction
+        """
+        # Close any long positions first
+        if self.positions[symbol] > 0:
+            profit = self.positions[symbol] * price
+            self.capital += profit
+            self.trade_history.append({
+                'timestamp': timestamp,
+                'symbol': symbol,
+                'action': 'Sell',
+                'price': price,
+                'shares': self.positions[symbol],
+                'value': profit
+            })
+            self.positions[symbol] = 0
+        
+        # Calculate position size for short selling
+        shares_to_short = self.calculate_position_size(symbol)
+        
+        # Execute short sell
+        if shares_to_short > 0:
+            short_value = shares_to_short * price
+            self.capital += short_value  # Add short proceeds to capital
+            self.positions[symbol] = -shares_to_short  # Negative for short
+            self.trade_history.append({
+                'timestamp': timestamp,
+                'symbol': symbol,
+                'action': 'Short',
+                'price': price,
+                'shares': shares_to_short,
+                'value': short_value
+            })
+    
+    def update_portfolio_value(self):
+        """Calculate the current portfolio value"""
+        portfolio_value = self.capital
+        
+        for symbol, shares in self.positions.items():
+            if shares != 0 and symbol in self.data:
+                current_price = self.data[symbol]['Close'].iloc[-1]
+                portfolio_value += shares * current_price
+        
+        timestamp = datetime.now()
+        self.portfolio_history.append({
+            'timestamp': timestamp,
+            'value': portfolio_value
+        })
+        
+        return portfolio_value
+    
+    def run_backtest(self, start_date, end_date):
+        """Run a backtest for the strategy"""
+        # Reinitialize for backtest
+        self.capital = self.initial_capital
+        self.positions = {symbol: 0 for symbol in self.symbols}
+        self.portfolio_history = []
+        self.trade_history = []
+        
+        # Get data for backtest period
+        for symbol in self.symbols:
+            df = yf.download(symbol, start=start_date, end=end_date)
+            
+            # Calculate indicators
+            df['SMA_short'] = df['Close'].rolling(window=self.short_window).mean()
+            df['SMA_long'] = df['Close'].rolling(window=self.long_window).mean()
+            
+            # Calculate signals
+            df['Signal'] = 0
+            df.loc[df['SMA_short'] > df['SMA_long'], 'Signal'] = 1
+            df.loc[df['SMA_short'] < df['SMA_long'], 'Signal'] = -1
+            df['Position'] = df['Signal'].diff()
+            
+            self.data[symbol] = df
+        
+        # Create a time index with all trading days
+        all_dates = set()
+        for symbol in self.symbols:
+            all_dates.update(self.data[symbol].index)
+        all_dates = sorted(all_dates)
+        
+        # Run through each day
+        portfolio_values = []
+        for current_date in all_dates:
+            # Execute trades for this date
+            for symbol in self.symbols:
+                if current_date in self.data[symbol].index:
+                    row = self.data[symbol].loc[current_date]
+                    current_price = row['Close']
+                    
+                    # Process trade signals
+                    # Ensure we're dealing with scalar values, not Series
+                    position_value = row['Position']
+                    if isinstance(position_value, pd.Series):
+                        position_value = position_value.iloc[0]
+                        
+                    if position_value == 2:  # Buy signal
+                        # Calculate position size
+                        risk_amount = self.capital * self.risk_per_trade
+                        volatility = self.data[symbol]['Close'].rolling(20).std().loc[current_date]
+                        if isinstance(volatility, pd.Series):
+                            volatility = volatility.iloc[0]
+                        shares_to_buy = int(risk_amount / (volatility * current_price))
+                        
+                        if shares_to_buy > 0:
+                            cost = shares_to_buy * current_price
+                            if cost <= self.capital:
+                                self.capital -= cost
+                                self.positions[symbol] += shares_to_buy
+                                self.trade_history.append({
+                                    'timestamp': current_date,
+                                    'symbol': symbol,
+                                    'action': 'Buy',
+                                    'price': current_price,
+                                    'shares': shares_to_buy,
+                                    'value': cost
+                                })
+                    
+                    elif position_value == -2:  # Sell signal
+                        if self.positions[symbol] > 0:
+                            value = self.positions[symbol] * current_price
+                            self.capital += value
+                            self.trade_history.append({
+                                'timestamp': current_date,
+                                'symbol': symbol,
+                                'action': 'Sell',
+                                'price': current_price,
+                                'shares': self.positions[symbol],
+                                'value': value
+                            })
+                            self.positions[symbol] = 0
+            
+            # Calculate portfolio value for this date
+            portfolio_value = self.capital
+            for symbol, shares in self.positions.items():
+                if shares > 0 and current_date in self.data[symbol].index:
+                    # Handle potential pandas Series
+                    price = self.data[symbol].loc[current_date, 'Close']
+                    if isinstance(price, pd.Series):
+                        price = price.iloc[0]
+                    portfolio_value += shares * price
+            
+            portfolio_values.append({
+                'timestamp': current_date,
+                'value': portfolio_value
+            })
+        
+        self.portfolio_history = portfolio_values
+        return pd.DataFrame(portfolio_values).set_index('timestamp')
+    
+    def visualize_portfolio(self):
+        """Visualize portfolio performance"""
+        if not self.portfolio_history:
+            print("No portfolio history available yet.")
+            return
+        
+        portfolio_df = pd.DataFrame(self.portfolio_history)
+        portfolio_df.set_index('timestamp', inplace=True)
+        
+        # Create figure and axis
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10), gridspec_kw={'height_ratios': [3, 1]})
+        
+        # Plot portfolio value
+        sns.lineplot(data=portfolio_df, x=portfolio_df.index, y='value', ax=ax1, label='Portfolio Value')
+        ax1.set_title('Portfolio Performance Over Time')
+        ax1.set_ylabel('Value ($)')
+        ax1.axhline(y=self.initial_capital, color='r', linestyle='--', label='Initial Capital')
+        ax1.legend()
+        
+        # Calculate performance metrics
+        returns = portfolio_df['value'].pct_change().dropna()
+        cumulative_returns = (1 + returns).cumprod() - 1
+        
+        # Plot cumulative returns
+        ax2.plot(cumulative_returns.index, cumulative_returns * 100)
+        ax2.set_title('Cumulative Returns (%)')
+        ax2.set_ylabel('Returns (%)')
+        
+        plt.tight_layout()
+        plt.show()
+    
+    def visualize_trading_signals(self, symbol):
+        """Visualize trading signals for a specific stock"""
+        if symbol not in self.data:
+            print(f"No data available for {symbol}")
+            return
+        
+        df = self.data[symbol].copy()
+        
+        # Create figure and axis
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10), gridspec_kw={'height_ratios': [3, 1]})
+        
+        # Plot prices and moving averages
+        ax1.plot(df.index, df['Close'], label='Close Price')
+        ax1.plot(df.index, df['SMA_short'], label=f'{self.short_window} Day SMA')
+        ax1.plot(df.index, df['SMA_long'], label=f'{self.long_window} Day SMA')
+        
+        # Highlight buy and sell signals
+        buy_signals = df[df['Position'] == 2]
+        sell_signals = df[df['Position'] == -2]
+        
+        ax1.scatter(buy_signals.index, buy_signals['Close'], marker='^', color='g', s=100, label='Buy Signal')
+        ax1.scatter(sell_signals.index, sell_signals['Close'], marker='v', color='r', s=100, label='Sell Signal')
+        
+        ax1.set_title(f'{symbol} Price and Signals')
+        ax1.set_ylabel('Price ($)')
+        ax1.legend()
+        
+        # Plot volume
+        ax2.bar(df.index, df['Volume'])
+        ax2.set_title('Volume')
+        ax2.set_ylabel('Volume')
+        
+        plt.tight_layout()
+        plt.show()
+    
+    def run_simulation(self, days=30, update_interval=1):
+        """Run a trading simulation for the specified number of days"""
+        for day in range(days):
+            print(f"Day {day+1}/{days}")
+            
+            # Update data
+            self.update_data()
+            
+            # Execute trades
+            self.execute_trades()
+            
+            # Update portfolio value
+            portfolio_value = self.update_portfolio_value()
+            print(f"Portfolio Value: ${portfolio_value:.2f}")
+            
+            # Display current positions
+            for symbol, shares in self.positions.items():
+                if shares != 0:
+                    current_price = self.data[symbol]['Close'].iloc[-1]
+                    position_value = shares * current_price
+                    print(f"{symbol}: {shares} shares (${position_value:.2f})")
+            
+            print("-" * 40)
+            
+            # Pause between updates
+            if day < days - 1:
+                time.sleep(update_interval)
+        
+        # Final visualization
+        self.visualize_portfolio()
+        
+        # Calculate performance metrics
+        self.calculate_performance_metrics()
+    
+    def calculate_performance_metrics(self):
+        """Calculate and display performance metrics"""
+        if not self.portfolio_history:
+            print("No portfolio history available yet.")
+            return
+        
+        portfolio_df = pd.DataFrame(self.portfolio_history)
+        portfolio_df.set_index('timestamp', inplace=True)
+        
+        # Calculate returns
+        portfolio_df['returns'] = portfolio_df['value'].pct_change()
+        
+        # Calculate metrics
+        total_return = (portfolio_df['value'].iloc[-1] / self.initial_capital) - 1
+        annualized_return = (1 + total_return) ** (252 / len(portfolio_df)) - 1
+        
+        # Risk metrics
+        volatility = portfolio_df['returns'].std() * np.sqrt(252)
+        sharpe_ratio = annualized_return / volatility if volatility > 0 else 0
+        
+        # Drawdown analysis
+        portfolio_df['cumulative_return'] = (1 + portfolio_df['returns']).cumprod()
+        portfolio_df['cumulative_max'] = portfolio_df['cumulative_return'].cummax()
+        portfolio_df['drawdown'] = (portfolio_df['cumulative_return'] / portfolio_df['cumulative_max']) - 1
+        max_drawdown = portfolio_df['drawdown'].min()
+        
+        # Print metrics
+        print("\nPerformance Metrics:")
+        print(f"Total Return: {total_return*100:.2f}%")
+        print(f"Annualized Return: {annualized_return*100:.2f}%")
+        print(f"Volatility (Annualized): {volatility*100:.2f}%")
+        print(f"Sharpe Ratio: {sharpe_ratio:.2f}")
+        print(f"Maximum Drawdown: {max_drawdown*100:.2f}%")
+        
+        # Plot drawdown
+        plt.figure(figsize=(14, 6))
+        plt.plot(portfolio_df.index, portfolio_df['drawdown'] * 100)
+        plt.fill_between(portfolio_df.index, portfolio_df['drawdown'] * 100, 0, color='red', alpha=0.3)
+        plt.title('Portfolio Drawdown (%)')
+        plt.ylabel('Drawdown (%)')
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+
+
+# Example usage
+if __name__ == "__main__":
+    # Create trading system with default parameters
+    trading_system = TradingSystem(
+        symbols=['AAPL', 'MSFT', 'GOOGL', 'AMZN'], 
+        initial_capital=10000,
+        short_window=20,
+        long_window=50,
+        risk_per_trade=0.02
+    )
+    
+    # Option 1: Run a quick backtest
+    print("Running backtest...")
+    start_date = datetime.now() - timedelta(days=365)
+    end_date = datetime.now()
+    backtest_results = trading_system.run_backtest(start_date, end_date)
+    trading_system.visualize_portfolio()
+    trading_system.calculate_performance_metrics()
+    
+    # Option 2: Run a simulation with real-time updates
+    # Uncomment the following lines to run a simulation
+    # print("\nRunning simulation...")
+    # trading_system.run_simulation(days=10, update_interval=5)
+    
+    # Visualize trading signals for a specific stock
+    trading_system.visualize_trading_signals('AAPL')
