@@ -1,0 +1,135 @@
+import random
+import time
+import os
+
+class DiceMachine:
+    def __init__(self):
+        self.dice_art = {
+            1: [
+                "┌─────────┐",
+                "│         │",
+                "│    ●    │",
+                "│         │",
+                "└─────────┘"
+            ],
+            2: [
+                "┌─────────┐",
+                "│  ●      │",
+                "│         │",
+                "│      ●  │",
+                "└─────────┘"
+            ],
+            3: [
+                "┌─────────┐",
+                "│  ●      │",
+                "│    ●    │",
+                "│      ●  │",
+                "└─────────┘"
+            ],
+            4: [
+                "┌─────────┐",
+                "│  ●   ●  │",
+                "│         │",
+                "│  ●   ●  │",
+                "└─────────┘"
+            ],
+            5: [
+                "┌─────────┐",
+                "│  ●   ●  │",
+                "│    ●    │",
+                "│  ●   ●  │",
+                "└─────────┘"
+            ],
+            6: [
+                "┌─────────┐",
+                "│  ●   ●  │",
+                "│  ●   ●  │",
+                "│  ●   ●  │",
+                "└─────────┘"
+            ]
+        }
+
+    def clear_screen(self):
+        """Clear the console screen."""
+        os.system('cls' if os.name == 'nt' else 'clear')
+
+    def display_dice(self, dice_values):
+        """Display the dice with ASCII art."""
+        dice_faces = []
+        for i in range(5):
+            row = ""
+            for value in dice_values:
+                row += self.dice_art[value][i] + "  "
+            dice_faces.append(row)
+        
+        for face in dice_faces:
+            print(face)
+
+    def roll_animation(self, num_dice):
+        """Show a rolling animation."""
+        for _ in range(5):  # 5 frames of animation
+            self.clear_screen()
+            temp_values = [random.randint(1, 6) for _ in range(num_dice)]
+            self.display_dice(temp_values)
+            time.sleep(0.2)
+
+    def roll_dice(self, num_dice=1):
+        """Roll the specified number of dice."""
+        if num_dice < 1:
+            return "Please roll at least one die."
+        
+        if num_dice > 10:
+            return "Maximum 10 dice allowed at once."
+        
+        # Show rolling animation
+        self.roll_animation(num_dice)
+        
+        # Roll the dice
+        dice_values = [random.randint(1, 6) for _ in range(num_dice)]
+        
+        # Clear screen and display final result
+        self.clear_screen()
+        print(f"\nRolling {num_dice} {'die' if num_dice == 1 else 'dice'}...")
+        self.display_dice(dice_values)
+        
+        # Show the sum if more than one die
+        if num_dice > 1:
+            print(f"\nTotal: {sum(dice_values)}")
+        
+        return dice_values
+
+    def run(self):
+        """Run the dice machine interface."""
+        self.clear_screen()
+        print("🎲 RANDOM DICE MACHINE 🎲")
+        print("========================")
+        
+        while True:
+            print("\nOptions:")
+            print("1. Roll dice")
+            print("2. Roll with custom dice count")
+            print("3. Exit")
+            
+            choice = input("\nEnter your choice (1-3): ")
+            
+            if choice == '1':
+                self.roll_dice(2)  # Default to 2 dice
+            elif choice == '2':
+                try:
+                    num_dice = int(input("How many dice do you want to roll? (1-10): "))
+                    self.roll_dice(num_dice)
+                except ValueError:
+                    print("Please enter a valid number.")
+            elif choice == '3':
+                print("\nThanks for using the Dice Machine! Goodbye!")
+                break
+            else:
+                print("Invalid choice. Please try again.")
+            
+            input("\nPress Enter to continue...")
+            self.clear_screen()
+
+# Run the dice machine if this script is executed directly
+if __name__ == "__main__":
+    dice_machine = DiceMachine()
+    dice_machine.run()
