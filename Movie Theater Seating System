@@ -1,0 +1,505 @@
+"""
+Movie Theater Seating System
+----------------------------
+This script implements a movie theater seating system with the following features:
+- First 10 users can select their seats
+- Subsequent users get randomly assigned seats
+- Visualizations for seat occupancy and daily revenue
+"""
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import random
+from datetime import datetime
+import ipywidgets as widgets
+from IPython.display import display, clear_output, HTML
+
+class MovieTheaterSeating:
+    def __init__(self):
+        """Initialize the movie theater seating system"""
+        # Configuration
+        self.rows = 8
+        self.cols = 10
+        self.total_seats = self.rows * self.cols
+        
+        # Prices based on seat location
+        self.prices = {
+            'regular': 12,   # Outer rows and columns
+            'premium': 15,   # Middle rows
+            'vip': 18        # Center seats
+        }
+        
+        # State tracking
+        self.users_served = 0
+        self.first_ten_mode = True
+        self.total_revenue = 0
+        self.seats_sold = 0
+        self.selected_seats = []
+        self.transactions = []
+        
+        # Initialize seat layout
+        self.initialize_seats()
+        
+        # Create the UI
+        self.create_ui()
+    
+    def initialize_seats(self):
+        """Create and initialize theater seats with their types and status"""
+        self.seats = {}
+        
+        for row in range(self.rows):
+            for col in range(self.cols):
+                # Create seat ID (e.g., A1, B5, etc.)
+                seat_id = f"{chr(65 + row)}{col + 1}"
+                
+                # Determine seat type based on location
+                if 2 <= row <= 5 and 2 <= col <= 7:
+                    if 3 <= row <= 4 and 3 <= col <= 6:
+                        seat_type = 'vip'  # Center seats
+                    else:
+                        seat_type = 'premium'  # Middle area
+                else:
+                    seat_type = 'regular'  # Outer seats
+                
+                # Store seat information
+                self.seats[(row, col)] = {
+                    'id': seat_id,
+                    'type': seat_type,
+                    'price': self.prices[seat_type],
+                    'status': 'available',  # available, selected, occupied
+                }
+    
+    def create_ui(self):
+        """Create the user interface for the seating system"""
+        # Create output widgets for feedback and visuals
+        self.message_area = widgets.Output()
+        self.chart_area = widgets.Output()
+        
+        # Create status information
+        self.status_html = widgets.HTML(
+            value=f"""
+            <div style="padding: 10px; background-color: #f0f0f0; border-radius: 5px;">
+                <h3>Movie Theater Status</h3>
+                <p>Users served: {self.users_served}</p>
+                <p>Mode: {'First 10 users (select seats)' if self.first_ten_mode else 'Random seat assignment'}</p>
+                <p>Seats sold: {self.seats_sold} / {self.total_seats}</p>
+                <p>Total revenue: ${self.total_revenue}</p>
+            </div>
+            """
+        )
+        
+        # Screen display at the top
+        screen = widgets.HTML(
+            value="""
+            <div style="background-color: #333; color: white; text-align: center; padding: 10px; width: 100%; margin: 10px 0 30px 0;">
+                <h2>SCREEN</h2>
+            </div>
+            """
+        )
+        
+        # Create the seat buttons grid
+        seat_grid = []
+        self.seat_buttons = {}
+        
+        for row in range(self.rows):
+            row_buttons = []
+            for col in range(self.cols):
+                seat = self.seats[(row, col)]
+                seat_id = seat['id']
+                seat_price = seat['price']
+                
+                # Set button color based on seat type
+                if seat['type'] == 'vip':
+                    color = 'red'
+                elif seat['type'] == 'premium':
+                    color = 'blue'
+                else:
+                    color = 'green'
+                
+                # Create the button
+                btn = widgets.Button(
+                    description=f"{seat_id}\n${seat_price}",
+                    layout=widgets.Layout(width='60px', height='50px'),
+                    style=widgets.ButtonStyle(button_color=color)
+                )
+                
+                # Set up the click handler
+                btn.on_click(self._make_seat_handler(row, col))
+                
+                # Store button reference
+                self.seat_buttons[(row, col)] = btn
+                row_buttons.append(btn)
+            
+            seat_grid.append(widgets.HBox(row_buttons))
+        
+        # Create the seating area with all rows
+        seating_area = widgets.VBox(seat_grid)
+        
+        # Create legend for seat types
+        legend = widgets.HTML(
+            value="""
+            <div style="display: flex; justify-content: center; margin-top: 20px;">
+                <div style="margin: 0 10px; background-color: green; color: white; padding: 5px 10px;">Regular ($12)</div>
+                <div style="margin: 0 10px; background-color: blue; color: white; padding: 5px 10px;">Premium ($15)</div>
+                <div style="margin: 0 10px; background-color: red; color: white; padding: 5px 10px;">VIP ($18)</div>
+                <div style="margin: 0 10px; background-color: yellow; color: black; padding: 5px 10px;">Selected</div>
+                <div style="margin: 0 10px; background-color: gray; color: white; padding: 5px 10px;">Occupied</div>
+            </div>
+            """
+        )
+        
+        # Input for customer name
+        self.name_input = widgets.Text(
+            value='',
+            placeholder='Enter customer name',
+            description='Name:',
+            layout=widgets.Layout(width='250px')
+        )
+        
+        # Number of seats for random booking
+        self.num_seats_input = widgets.IntSlider(
+            value=2,
+            min=1,
+            max=4,
+            description='Seats:',
+            layout=widgets.Layout(width='250px')
+        )
+        
+        # Action buttons
+        book_button = widgets.Button(
+            description='Book Selected Seats',
+            button_style='success',
+            layout=widgets.Layout(width='200px')
+        )
+        book_button.on_click(self._book_selected_seats)
+        
+        random_button = widgets.Button(
+            description='Random Booking',
+            button_style='warning',
+            layout=widgets.Layout(width='200px')
+        )
+        random_button.on_click(self._book_random_seats)
+        
+        reset_button = widgets.Button(
+            description='Reset Demo',
+            button_style='danger',
+            layout=widgets.Layout(width='200px')
+        )
+        reset_button.on_click(self._reset_demo)
+        
+        # Control panel layout
+        controls = widgets.VBox([
+            widgets.HTML("<h3>Booking Controls</h3>"),
+            self.name_input,
+            widgets.HBox([book_button, random_button]),
+            widgets.HTML("<h4>Random Booking Options</h4>"),
+            self.num_seats_input,
+            reset_button,
+            self.message_area
+        ])
+        
+        # Main layout
+        main_layout = widgets.VBox([
+            self.status_html,
+            screen,
+            seating_area,
+            legend,
+            widgets.HBox([controls, self.chart_area])
+        ])
+        
+        # Display the UI
+        display(main_layout)
+        
+        # Initialize visualizations
+        self.update_charts()
+    
+    def _make_seat_handler(self, row, col):
+        """Create a handler function for a specific seat button"""
+        def handle_click(button):
+            self.toggle_seat(row, col)
+        return handle_click
+    
+    def toggle_seat(self, row, col):
+        """Toggle the selection state of a seat"""
+        # Only allow selection in first-10-users mode
+        if not self.first_ten_mode:
+            with self.message_area:
+                clear_output(wait=True)
+                print("First 10 users have been served. New bookings use random seat assignment.")
+            return
+        
+        seat = self.seats[(row, col)]
+        button = self.seat_buttons[(row, col)]
+        
+        if seat['status'] == 'available':
+            # Select the seat
+            seat['status'] = 'selected'
+            button.style.button_color = 'yellow'
+            self.selected_seats.append((row, col))
+            
+        elif seat['status'] == 'selected':
+            # Unselect the seat
+            seat['status'] = 'available'
+            
+            # Restore original color based on seat type
+            if seat['type'] == 'vip':
+                button.style.button_color = 'red'
+            elif seat['type'] == 'premium':
+                button.style.button_color = 'blue'
+            else:
+                button.style.button_color = 'green'
+            
+            self.selected_seats.remove((row, col))
+            
+        elif seat['status'] == 'occupied':
+            with self.message_area:
+                clear_output(wait=True)
+                print("This seat is already occupied.")
+    
+    def _book_selected_seats(self, button):
+        """Handle booking of manually selected seats"""
+        if not self.selected_seats:
+            with self.message_area:
+                clear_output(wait=True)
+                print("Please select at least one seat.")
+            return
+        
+        customer_name = self.name_input.value.strip()
+        if not customer_name:
+            with self.message_area:
+                clear_output(wait=True)
+                print("Please enter a customer name.")
+            return
+        
+        # Calculate total price
+        total_price = sum(self.seats[(row, col)]['price'] for row, col in self.selected_seats)
+        seat_ids = [self.seats[(row, col)]['id'] for row, col in self.selected_seats]
+        
+        # Complete the booking
+        for row, col in self.selected_seats:
+            self.seats[(row, col)]['status'] = 'occupied'
+            self.seats[(row, col)]['customer'] = customer_name
+            self.seat_buttons[(row, col)].style.button_color = 'gray'
+        
+        # Update counters
+        self.users_served += 1
+        self.total_revenue += total_price
+        self.seats_sold += len(self.selected_seats)
+        
+        # Record transaction
+        self.transactions.append({
+            'customer': customer_name,
+            'seats': seat_ids,
+            'total': total_price,
+            'time': datetime.now().strftime('%H:%M:%S')
+        })
+        
+        # Check if first 10 users have been served
+        if self.users_served >= 10 and self.first_ten_mode:
+            self.first_ten_mode = False
+            with self.message_area:
+                clear_output(wait=True)
+                print("First 10 users have been served. Switching to random seat assignment mode.")
+        
+        # Clear selection and update UI
+        self.selected_seats = []
+        self._update_status()
+        self.update_charts()
+        
+        with self.message_area:
+            clear_output(wait=True)
+            print(f"Booking successful for {customer_name}")
+            print(f"Seats: {', '.join(seat_ids)}")
+            print(f"Total: ${total_price}")
+    
+    def _book_random_seats(self, button):
+        """Handle booking with random seat assignment"""
+        customer_name = self.name_input.value.strip()
+        if not customer_name:
+            with self.message_area:
+                clear_output(wait=True)
+                print("Please enter a customer name.")
+            return
+        
+        # Find available seats
+        available_seats = [(r, c) for (r, c), seat in self.seats.items() 
+                          if seat['status'] == 'available']
+        
+        if not available_seats:
+            with self.message_area:
+                clear_output(wait=True)
+                print("Sorry, all seats are already occupied.")
+            return
+        
+        # Get number of seats to book
+        num_seats = min(self.num_seats_input.value, len(available_seats))
+        
+        # Randomly select seats
+        selected_seats = random.sample(available_seats, num_seats)
+        
+        # Calculate total price
+        total_price = sum(self.seats[(row, col)]['price'] for row, col in selected_seats)
+        seat_ids = [self.seats[(row, col)]['id'] for row, col in selected_seats]
+        
+        # Complete the booking
+        for row, col in selected_seats:
+            self.seats[(row, col)]['status'] = 'occupied'
+            self.seats[(row, col)]['customer'] = customer_name
+            self.seat_buttons[(row, col)].style.button_color = 'gray'
+        
+        # Update counters
+        self.users_served += 1
+        self.total_revenue += total_price
+        self.seats_sold += len(selected_seats)
+        
+        # Record transaction
+        self.transactions.append({
+            'customer': customer_name,
+            'seats': seat_ids,
+            'total': total_price,
+            'time': datetime.now().strftime('%H:%M:%S')
+        })
+        
+        # Update UI
+        self._update_status()
+        self.update_charts()
+        
+        with self.message_area:
+            clear_output(wait=True)
+            print(f"Random booking successful for {customer_name}")
+            print(f"Seats: {', '.join(seat_ids)}")
+            print(f"Total: ${total_price}")
+    
+    def _reset_demo(self, button):
+        """Reset the demo to initial state"""
+        # Reset all seats
+        for (row, col), seat in self.seats.items():
+            seat['status'] = 'available'
+            if 'customer' in seat:
+                del seat['customer']
+            
+            # Reset button colors
+            btn = self.seat_buttons[(row, col)]
+            if seat['type'] == 'vip':
+                btn.style.button_color = 'red'
+            elif seat['type'] == 'premium':
+                btn.style.button_color = 'blue'
+            else:
+                btn.style.button_color = 'green'
+        
+        # Reset state
+        self.users_served = 0
+        self.first_ten_mode = True
+        self.total_revenue = 0
+        self.seats_sold = 0
+        self.selected_seats = []
+        self.transactions = []
+        
+        # Update UI
+        self._update_status()
+        self.update_charts()
+        
+        with self.message_area:
+            clear_output(wait=True)
+            print("Demo has been reset to initial state.")
+    
+    def _update_status(self):
+        """Update the status display"""
+        self.status_html.value = f"""
+        <div style="padding: 10px; background-color: #f0f0f0; border-radius: 5px;">
+            <h3>Movie Theater Status</h3>
+            <p>Users served: {self.users_served}</p>
+            <p>Mode: {'First 10 users (select seats)' if self.first_ten_mode else 'Random seat assignment'}</p>
+            <p>Seats sold: {self.seats_sold} / {self.total_seats}</p>
+            <p>Total revenue: ${self.total_revenue}</p>
+        </div>
+        """
+    
+    def update_charts(self):
+        """Update the data visualizations"""
+        with self.chart_area:
+            clear_output(wait=True)
+            
+            # Create figure with subplots
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+            
+            # Count seats by status
+            occupied = sum(1 for seat in self.seats.values() if seat['status'] == 'occupied')
+            available = self.total_seats - occupied
+            
+            # Create pie chart for seat occupancy
+            if occupied > 0:
+                ax1.pie(
+                    [occupied, available], 
+                    labels=['Occupied', 'Available'],
+                    autopct='%1.1f%%', 
+                    colors=['#ff9999', '#66b3ff'],
+                    startangle=90
+                )
+                ax1.set_title('Seat Occupancy')
+            else:
+                ax1.text(0.5, 0.5, 'No seats occupied yet', 
+                        horizontalalignment='center', verticalalignment='center')
+                ax1.set_title('Seat Occupancy')
+            
+            # Hide axes for pie chart
+            ax1.axis('equal')
+            
+            # Create table for revenue data
+            data = [
+                ['Total Revenue', f'${self.total_revenue}'],
+                ['Tickets Sold', f'{self.seats_sold}'],
+                ['Average Price', f'${self.total_revenue/self.seats_sold:.2f}' if self.seats_sold else '$0.00']
+            ]
+            
+            # Hide axes for table
+            ax2.axis('off')
+            
+            # Create the table
+            table = ax2.table(
+                cellText=data,
+                loc='center',
+                cellLoc='center',
+                colWidths=[0.5, 0.5]
+            )
+            
+            # Style the table
+            table.auto_set_font_size(False)
+            table.set_fontsize(12)
+            table.scale(1, 1.5)
+            for key, cell in table.get_celld().items():
+                if key[0] == 0:
+                    cell.set_facecolor('#4472C4')
+                    cell.set_text_props(color='white')
+                else:
+                    cell.set_facecolor('#D9E1F2')
+            
+            ax2.set_title('Daily Revenue')
+            
+            plt.tight_layout()
+            plt.show()
+            
+            # Show recent transactions if available
+            if self.transactions:
+                display(HTML("<h4>Recent Transactions</h4>"))
+                df = pd.DataFrame(self.transactions[-5:])  # Show last 5 transactions
+                display(df)
+
+
+def run_movie_theater():
+    """Run the movie theater seating application"""
+    print("Starting Movie Theater Seating System...")
+    print("\nHow to use:")
+    print("1. First 10 customers can select their seats manually")
+    print("2. After 10 customers, seats are assigned randomly")
+    print("3. Use 'Book Selected Seats' to book manually selected seats")
+    print("4. Use 'Random Booking' for random seat assignment")
+    print("5. The status area shows the current mode and statistics")
+    print("6. Visualizations show seat occupancy and revenue data")
+    print("\nNote: You can reset the demo at any time with the 'Reset Demo' button")
+    
+    return MovieTheaterSeating()
+
+# Run the application
+theater = run_movie_theater()
