@@ -1,0 +1,717 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from IPython.display import display, clear_output
+import ipywidgets as widgets
+from datetime import datetime, timedelta
+import random
+import time
+
+class ShippingSimulator:
+    """
+    A simulator for international shipping supply chain management.
+    Allows users to track goods, monitor inventory, and visualize supply/demand metrics.
+    """
+    
+    def __init__(self):
+        """Initialize the simulator with default values and empty data structures."""
+        # Initial goods inventory
+        self.inventory = {
+            'Electronics': {'quantity': 500, 'unit_price': 250, 'weight': 0.5},
+            'Clothing': {'quantity': 1000, 'unit_price': 50, 'weight': 0.3},
+            'Food': {'quantity': 2000, 'unit_price': 10, 'weight': 1.2},
+            'Machinery': {'quantity': 100, 'unit_price': 1500, 'weight': 50},
+            'Medical Supplies': {'quantity': 300, 'unit_price': 200, 'weight': 0.8}
+        }
+        
+        # Ship information
+        self.ship = {
+            'name': 'Global Trader',
+            'capacity': 5000,  # tons
+            'speed': 20,  # knots
+            'current_weight': 0,
+            'current_value': 0,
+            'location': 'Port A',
+            'destination': 'Port B',
+            'status': 'Docked',
+            'departure_date': datetime.now(),
+            'arrival_date': datetime.now() + timedelta(days=7)
+        }
+        
+        # Route information
+        self.routes = {
+            'Port A': {'connected_ports': ['Port B', 'Port C'], 'demand': self._generate_demand()},
+            'Port B': {'connected_ports': ['Port A', 'Port D'], 'demand': self._generate_demand()},
+            'Port C': {'connected_ports': ['Port A', 'Port D'], 'demand': self._generate_demand()},
+            'Port D': {'connected_ports': ['Port B', 'Port C'], 'demand': self._generate_demand()}
+        }
+        
+        # Transaction history
+        self.transactions = []
+        
+        # Calculate initial metrics
+        self._update_ship_metrics()
+    
+    def _generate_demand(self):
+        """Generate random demand for each product at a port."""
+        return {
+            'Electronics': random.randint(50, 200),
+            'Clothing': random.randint(100, 500),
+            'Food': random.randint(200, 800),
+            'Machinery': random.randint(10, 50),
+            'Medical Supplies': random.randint(30, 150)
+        }
+    
+    def _update_ship_metrics(self):
+        """Update the current weight and value of cargo on the ship."""
+        total_weight = 0
+        total_value = 0
+        
+        for product, details in self.inventory.items():
+            total_weight += details['quantity'] * details['weight']
+            total_value += details['quantity'] * details['unit_price']
+        
+        self.ship['current_weight'] = total_weight
+        self.ship['current_value'] = total_value
+    
+    def add_goods(self, product, quantity):
+        """
+        Add goods to the ship's inventory.
+        
+        Args:
+            product (str): The product type to add
+            quantity (int): The quantity to add
+        """
+        if product in self.inventory:
+            # Check if we're within weight capacity
+            new_weight = self.ship['current_weight'] + (quantity * self.inventory[product]['weight'])
+            if new_weight <= self.ship['capacity']:
+                self.inventory[product]['quantity'] += quantity
+                self._update_ship_metrics()
+                
+                # Record transaction
+                self.transactions.append({
+                    'date': datetime.now(),
+                    'type': 'Load',
+                    'product': product,
+                    'quantity': quantity,
+                    'location': self.ship['location']
+                })
+                
+                return True, f"Successfully added {quantity} units of {product}"
+            else:
+                return False, f"Cannot add goods: Ship capacity would be exceeded. Current weight: {self.ship['current_weight']}, Capacity: {self.ship['capacity']}"
+        else:
+            return False, f"Product '{product}' is not recognized"
+    
+    def remove_goods(self, product, quantity):
+        """
+        Remove goods from the ship's inventory.
+        
+        Args:
+            product (str): The product type to remove
+            quantity (int): The quantity to remove
+        """
+        if product in self.inventory:
+            if self.inventory[product]['quantity'] >= quantity:
+                self.inventory[product]['quantity'] -= quantity
+                self._update_ship_metrics()
+                
+                # Record transaction
+                self.transactions.append({
+                    'date': datetime.now(),
+                    'type': 'Unload',
+                    'product': product,
+                    'quantity': quantity,
+                    'location': self.ship['location']
+                })
+                
+                return True, f"Successfully removed {quantity} units of {product}"
+            else:
+                return False, f"Insufficient quantity of {product}. Available: {self.inventory[product]['quantity']}"
+        else:
+            return False, f"Product '{product}' is not recognized"
+    
+    def sail_to_port(self, destination):
+        """
+        Sail the ship to a new port.
+        
+        Args:
+            destination (str): The destination port
+        """
+        if destination in self.routes[self.ship['location']]['connected_ports']:
+            self.ship['status'] = 'En Route'
+            self.ship['destination'] = destination
+            
+            # Calculate travel time based on distance (simplified)
+            # In a real system, you would calculate actual nautical distances
+            days_to_travel = random.randint(3, 10)
+            self.ship['departure_date'] = datetime.now()
+            self.ship['arrival_date'] = datetime.now() + timedelta(days=days_to_travel)
+            
+            # Simulate the journey with a progress bar
+            print(f"Setting sail from {self.ship['location']} to {destination}...")
+            
+            # Record the departure in transactions
+            self.transactions.append({
+                'date': datetime.now(),
+                'type': 'Departure',
+                'product': 'N/A',
+                'quantity': 0,
+                'location': self.ship['location'],
+                'destination': destination
+            })
+            
+            # Update location after arrival
+            self.ship['location'] = destination
+            self.ship['status'] = 'Docked'
+            
+            # Record the arrival in transactions
+            self.transactions.append({
+                'date': datetime.now(),
+                'type': 'Arrival',
+                'product': 'N/A', 
+                'quantity': 0,
+                'location': destination
+            })
+            
+            # Generate new demand at the port
+            self.routes[destination]['demand'] = self._generate_demand()
+            
+            return True, f"Arrived at {destination}"
+        else:
+            return False, f"Cannot sail to {destination}. Not connected to current port {self.ship['location']}"
+    
+    def get_inventory_df(self):
+        """Get the inventory as a pandas DataFrame."""
+        inventory_data = []
+        for product, details in self.inventory.items():
+            inventory_data.append({
+                'Product': product,
+                'Quantity': details['quantity'],
+                'Unit Price ($)': details['unit_price'],
+                'Weight (tons)': details['weight'],
+                'Total Value ($)': details['quantity'] * details['unit_price'],
+                'Total Weight (tons)': details['quantity'] * details['weight']
+            })
+        return pd.DataFrame(inventory_data)
+    
+    def get_transactions_df(self):
+        """Get the transactions as a pandas DataFrame."""
+        return pd.DataFrame(self.transactions)
+    
+    def get_port_demand_df(self, port=None):
+        """
+        Get the demand at a specific port as a DataFrame.
+        
+        Args:
+            port (str, optional): The port to get demand for. Defaults to current location.
+        """
+        if port is None:
+            port = self.ship['location']
+            
+        if port in self.routes:
+            demand_data = []
+            for product, quantity in self.routes[port]['demand'].items():
+                demand_data.append({
+                    'Product': product,
+                    'Demand': quantity,
+                    'Available': self.inventory[product]['quantity'],
+                    'Shortage/Surplus': self.inventory[product]['quantity'] - quantity
+                })
+            return pd.DataFrame(demand_data)
+        else:
+            return pd.DataFrame()
+    
+    def display_ship_info(self):
+        """Display information about the ship."""
+        ship_info = {
+            'Name': self.ship['name'],
+            'Status': self.ship['status'],
+            'Current Location': self.ship['location'],
+            'Destination': self.ship['destination'] if self.ship['status'] == 'En Route' else 'N/A',
+            'Cargo Weight': f"{self.ship['current_weight']:.2f} tons",
+            'Cargo Value': f"${self.ship['current_value']:,.2f}",
+            'Capacity': f"{self.ship['capacity']} tons",
+            'Capacity Utilization': f"{(self.ship['current_weight'] / self.ship['capacity'] * 100):.2f}%"
+        }
+        
+        # Convert to DataFrame for nicer display
+        ship_df = pd.DataFrame.from_dict(ship_info, orient='index', columns=['Value'])
+        return ship_df
+    
+    def plot_inventory(self):
+        """Create a visual representation of the current inventory."""
+        inventory_df = self.get_inventory_df()
+        
+        # Create a figure with subplots
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 8))
+        
+        # Plot 1: Pie chart of inventory by value
+        value_data = inventory_df[['Product', 'Total Value ($)']]
+        ax1.pie(value_data['Total Value ($)'], labels=value_data['Product'], autopct='%1.1f%%',
+                shadow=True, startangle=90)
+        ax1.set_title('Inventory by Value')
+        
+        # Plot 2: Bar chart of quantities
+        sns.barplot(x='Product', y='Quantity', data=inventory_df, ax=ax2)
+        ax2.set_title('Inventory Quantities')
+        ax2.set_ylabel('Quantity (units)')
+        ax2.tick_params(axis='x', rotation=45)
+        
+        plt.tight_layout()
+        plt.show()
+    
+    def plot_supply_vs_demand(self):
+        """Create a visual comparison of supply versus demand."""
+        demand_df = self.get_port_demand_df()
+        
+        # Create the plot
+        plt.figure(figsize=(12, 8))
+        
+        # Get product names and set up positions for bars
+        products = demand_df['Product'].tolist()
+        x = np.arange(len(products))
+        width = 0.35
+        
+        # Create bars
+        supply_bars = plt.bar(x - width/2, demand_df['Available'], width, label='Available Supply')
+        demand_bars = plt.bar(x + width/2, demand_df['Demand'], width, label='Port Demand')
+        
+        # Add labels and title
+        plt.xlabel('Products')
+        plt.ylabel('Quantity')
+        plt.title(f'Supply vs Demand at {self.ship["location"]}')
+        plt.xticks(x, products, rotation=45)
+        plt.legend()
+        
+        # Add value labels on top of bars
+        def add_labels(bars):
+            for bar in bars:
+                height = bar.get_height()
+                plt.text(bar.get_x() + bar.get_width()/2., height + 5,
+                        f'{int(height)}', ha='center', va='bottom')
+                
+        add_labels(supply_bars)
+        add_labels(demand_bars)
+        
+        plt.tight_layout()
+        plt.show()
+    
+    def plot_transaction_history(self):
+        """Plot the transaction history."""
+        if not self.transactions:
+            print("No transactions recorded yet.")
+            return
+            
+        transactions_df = self.get_transactions_df()
+        
+        # Filter for load/unload transactions only
+        load_unload_df = transactions_df[transactions_df['type'].isin(['Load', 'Unload'])]
+        
+        if load_unload_df.empty:
+            print("No load/unload transactions recorded yet.")
+            return
+        
+        # Group by product and transaction type
+        grouped = load_unload_df.groupby(['product', 'type'])['quantity'].sum().unstack()
+        
+        # Fill NaN with 0
+        if 'Load' not in grouped.columns:
+            grouped['Load'] = 0
+        if 'Unload' not in grouped.columns:
+            grouped['Unload'] = 0
+            
+        # Plot the data
+        ax = grouped.plot(kind='bar', figsize=(12, 8))
+        plt.title('Transaction History by Product')
+        plt.xlabel('Product')
+        plt.ylabel('Quantity')
+        plt.legend(['Loaded', 'Unloaded'])
+        
+        # Add net change values on top of bars
+        for i, product in enumerate(grouped.index):
+            loaded = grouped.loc[product, 'Load']
+            unloaded = grouped.loc[product, 'Unload'] if 'Unload' in grouped.columns else 0
+            net = loaded - unloaded
+            plt.text(i, max(loaded, unloaded) + 5, f'Net: {int(net)}', ha='center')
+        
+        plt.tight_layout()
+        plt.show()
+
+
+def run_simulator():
+    """Run the interactive shipping simulator."""
+    simulator = ShippingSimulator()
+    
+    def display_main_menu():
+        """Display the main menu options."""
+        clear_output(wait=True)
+        print("=" * 50)
+        print("INTERNATIONAL SHIPPING SUPPLY CHAIN SIMULATOR")
+        print("=" * 50)
+        print(f"\nCurrent Date/Time: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        print("\nShip Information:")
+        display(simulator.display_ship_info())
+        
+        print("\nSelect an option:")
+        print("1. View Inventory")
+        print("2. Load Goods")
+        print("3. Unload Goods")
+        print("4. View Supply vs. Demand")
+        print("5. View Transaction History")
+        print("6. Sail to Another Port")
+        print("7. Generate Reports")
+        print("8. Exit")
+        
+        choice = input("\nEnter your choice (1-8): ")
+        handle_main_menu(choice)
+    
+    def handle_main_menu(choice):
+        """Handle the user's menu selection."""
+        if choice == '1':
+            view_inventory()
+        elif choice == '2':
+            load_goods()
+        elif choice == '3':
+            unload_goods()
+        elif choice == '4':
+            view_supply_demand()
+        elif choice == '5':
+            view_transactions()
+        elif choice == '6':
+            sail_to_port()
+        elif choice == '7':
+            generate_reports()
+        elif choice == '8':
+            print("\nExiting the simulator. Thank you for using our program!")
+            return
+        else:
+            print("\nInvalid choice. Please try again.")
+            input("\nPress Enter to continue...")
+            display_main_menu()
+    
+    def view_inventory():
+        """Display the current inventory."""
+        clear_output(wait=True)
+        print("=" * 50)
+        print("CURRENT INVENTORY")
+        print("=" * 50)
+        
+        # Display inventory table
+        inventory_df = simulator.get_inventory_df()
+        display(inventory_df)
+        
+        # Display inventory charts
+        simulator.plot_inventory()
+        
+        input("\nPress Enter to return to the main menu...")
+        display_main_menu()
+    
+    def load_goods():
+        """Interface for loading goods onto the ship."""
+        clear_output(wait=True)
+        print("=" * 50)
+        print("LOAD GOODS")
+        print("=" * 50)
+        
+        # Display current inventory
+        print("\nCurrent Inventory:")
+        display(simulator.get_inventory_df())
+        
+        # Get product selection
+        print("\nAvailable Products:")
+        for i, product in enumerate(simulator.inventory.keys(), 1):
+            print(f"{i}. {product}")
+        
+        try:
+            product_idx = int(input("\nSelect a product (enter number): ")) - 1
+            product = list(simulator.inventory.keys())[product_idx]
+            
+            quantity = int(input(f"Enter quantity of {product} to load: "))
+            
+            success, message = simulator.add_goods(product, quantity)
+            print(f"\n{message}")
+            
+        except (ValueError, IndexError):
+            print("\nInvalid input. Please enter a valid number.")
+        
+        input("\nPress Enter to return to the main menu...")
+        display_main_menu()
+    
+    def unload_goods():
+        """Interface for unloading goods from the ship."""
+        clear_output(wait=True)
+        print("=" * 50)
+        print("UNLOAD GOODS")
+        print("=" * 50)
+        
+        # Display current inventory
+        print("\nCurrent Inventory:")
+        display(simulator.get_inventory_df())
+        
+        # Get product selection
+        print("\nAvailable Products:")
+        for i, product in enumerate(simulator.inventory.keys(), 1):
+            print(f"{i}. {product} (Available: {simulator.inventory[product]['quantity']})")
+        
+        try:
+            product_idx = int(input("\nSelect a product (enter number): ")) - 1
+            product = list(simulator.inventory.keys())[product_idx]
+            
+            quantity = int(input(f"Enter quantity of {product} to unload: "))
+            
+            success, message = simulator.remove_goods(product, quantity)
+            print(f"\n{message}")
+            
+        except (ValueError, IndexError):
+            print("\nInvalid input. Please enter a valid number.")
+        
+        input("\nPress Enter to return to the main menu...")
+        display_main_menu()
+    
+    def view_supply_demand():
+        """Display supply versus demand visualization."""
+        clear_output(wait=True)
+        print("=" * 50)
+        print(f"SUPPLY VS. DEMAND AT {simulator.ship['location'].upper()}")
+        print("=" * 50)
+        
+        # Display supply vs demand table
+        demand_df = simulator.get_port_demand_df()
+        display(demand_df)
+        
+        # Display supply vs demand chart
+        simulator.plot_supply_vs_demand()
+        
+        input("\nPress Enter to return to the main menu...")
+        display_main_menu()
+    
+    def view_transactions():
+        """Display transaction history."""
+        clear_output(wait=True)
+        print("=" * 50)
+        print("TRANSACTION HISTORY")
+        print("=" * 50)
+        
+        if simulator.transactions:
+            transactions_df = simulator.get_transactions_df()
+            display(transactions_df)
+            
+            # Display transaction chart
+            simulator.plot_transaction_history()
+        else:
+            print("\nNo transactions recorded yet.")
+        
+        input("\nPress Enter to return to the main menu...")
+        display_main_menu()
+    
+    def sail_to_port():
+        """Interface for sailing to another port."""
+        clear_output(wait=True)
+        print("=" * 50)
+        print("SAIL TO ANOTHER PORT")
+        print("=" * 50)
+        
+        print(f"\nCurrent Location: {simulator.ship['location']}")
+        
+        connected_ports = simulator.routes[simulator.ship['location']]['connected_ports']
+        print("\nConnected Ports:")
+        for i, port in enumerate(connected_ports, 1):
+            print(f"{i}. {port}")
+        
+        try:
+            port_idx = int(input("\nSelect destination port (enter number): ")) - 1
+            destination = connected_ports[port_idx]
+            
+            success, message = simulator.sail_to_port(destination)
+            print(f"\n{message}")
+            
+        except (ValueError, IndexError):
+            print("\nInvalid input. Please enter a valid number.")
+        
+        input("\nPress Enter to return to the main menu...")
+        display_main_menu()
+    
+    def generate_reports():
+        """Generate and display various reports."""
+        clear_output(wait=True)
+        print("=" * 50)
+        print("GENERATE REPORTS")
+        print("=" * 50)
+        
+        print("\nSelect a report to generate:")
+        print("1. Inventory Valuation Report")
+        print("2. Supply-Demand Gap Analysis")
+        print("3. Transaction Summary")
+        print("4. Ship Utilization Report")
+        print("5. Return to Main Menu")
+        
+        choice = input("\nEnter your choice (1-5): ")
+        
+        if choice == '1':
+            # Inventory Valuation Report
+            clear_output(wait=True)
+            print("=" * 50)
+            print("INVENTORY VALUATION REPORT")
+            print("=" * 50)
+            
+            inventory_df = simulator.get_inventory_df()
+            total_value = inventory_df['Total Value ($)'].sum()
+            
+            display(inventory_df)
+            print(f"\nTotal Inventory Value: ${total_value:,.2f}")
+            
+            # Create a pie chart of value distribution
+            plt.figure(figsize=(10, 8))
+            plt.pie(inventory_df['Total Value ($)'], labels=inventory_df['Product'], 
+                   autopct='%1.1f%%', shadow=True, startangle=90)
+            plt.title('Inventory Value Distribution')
+            plt.axis('equal')
+            plt.show()
+            
+        elif choice == '2':
+            # Supply-Demand Gap Analysis
+            clear_output(wait=True)
+            print("=" * 50)
+            print("SUPPLY-DEMAND GAP ANALYSIS")
+            print("=" * 50)
+            
+            demand_df = simulator.get_port_demand_df()
+            
+            # Add a column for gap percentage
+            demand_df['Gap %'] = (demand_df['Shortage/Surplus'] / demand_df['Demand'] * 100).round(2)
+            
+            display(demand_df)
+            
+            # Create a bar chart of the gaps
+            plt.figure(figsize=(12, 8))
+            colors = ['green' if x >= 0 else 'red' for x in demand_df['Shortage/Surplus']]
+            plt.bar(demand_df['Product'], demand_df['Shortage/Surplus'], color=colors)
+            plt.axhline(y=0, color='black', linestyle='-', alpha=0.3)
+            plt.title(f'Supply-Demand Gap at {simulator.ship["location"]}')
+            plt.xlabel('Products')
+            plt.ylabel('Surplus (+) / Shortage (-)')
+            plt.xticks(rotation=45)
+            
+            # Add value labels on top of bars
+            for i, value in enumerate(demand_df['Shortage/Surplus']):
+                plt.text(i, value + (5 if value >= 0 else -15), 
+                        f'{int(value)}', ha='center')
+            
+            plt.tight_layout()
+            plt.show()
+            
+        elif choice == '3':
+            # Transaction Summary
+            clear_output(wait=True)
+            print("=" * 50)
+            print("TRANSACTION SUMMARY")
+            print("=" * 50)
+            
+            if simulator.transactions:
+                transactions_df = simulator.get_transactions_df()
+                
+                # Group by transaction type and product
+                type_summary = transactions_df.groupby('type')['quantity'].sum().reset_index()
+                product_summary = transactions_df[transactions_df['type'].isin(['Load', 'Unload'])].groupby('product')['quantity'].sum().reset_index()
+                
+                print("\nTransactions by Type:")
+                display(type_summary)
+                
+                print("\nQuantities by Product:")
+                display(product_summary)
+                
+                # Create a summary chart
+                simulator.plot_transaction_history()
+            else:
+                print("\nNo transactions recorded yet.")
+                
+        elif choice == '4':
+            # Ship Utilization Report
+            clear_output(wait=True)
+            print("=" * 50)
+            print("SHIP UTILIZATION REPORT")
+            print("=" * 50)
+            
+            ship_info = simulator.display_ship_info()
+            display(ship_info)
+            
+            # Calculate utilization metrics
+            capacity = simulator.ship['capacity']
+            current_weight = simulator.ship['current_weight']
+            utilization_pct = (current_weight / capacity) * 100
+            
+            # Create a gauge chart for capacity utilization
+            plt.figure(figsize=(10, 6))
+            
+            # Create the gauge
+            gauge_colors = ['green', 'yellow', 'orange', 'red']
+            gauge_bounds = [0, 50, 75, 90, 100]
+            
+            # Determine the color based on utilization
+            for i in range(len(gauge_bounds)-1):
+                if gauge_bounds[i] <= utilization_pct < gauge_bounds[i+1]:
+                    color = gauge_colors[i]
+                    break
+            else:
+                color = gauge_colors[-1]
+            
+            plt.barh(1, utilization_pct, color=color)
+            plt.barh(1, 100, color='lightgrey', alpha=0.3)
+            
+            plt.xlim(0, 100)
+            plt.ylim(0, 2)
+            plt.xticks([0, 25, 50, 75, 100])
+            plt.yticks([])
+            
+            # Add labels
+            plt.text(utilization_pct/2, 1, f'{utilization_pct:.1f}%', 
+                    ha='center', va='center', color='white', fontweight='bold')
+            
+            plt.title('Ship Capacity Utilization')
+            plt.xlabel('Utilization (%)')
+            
+            plt.tight_layout()
+            plt.show()
+            
+            # Display weight distribution by product
+            inventory_df = simulator.get_inventory_df()
+            
+            plt.figure(figsize=(10, 6))
+            plt.pie(inventory_df['Total Weight (tons)'], labels=inventory_df['Product'],
+                   autopct='%1.1f%%', shadow=True)
+            plt.title('Cargo Weight Distribution')
+            plt.axis('equal')
+            plt.show()
+            
+        elif choice == '5':
+            display_main_menu()
+            return
+        else:
+            print("\nInvalid choice. Please try again.")
+        
+        input("\nPress Enter to return to the reports menu...")
+        generate_reports()
+    
+    # Start the simulator
+    display_main_menu()
+
+
+# For running in Jupyter Notebook or Google Colab
+if __name__ == "__main__":
+    # Display a welcome message
+    print("=" * 70)
+    print(" " * 15 + "INTERNATIONAL SHIPPING SUPPLY CHAIN SIMULATOR")
+    print("=" * 70)
+    print("\nThis program simulates the supply chain of a ship carrying goods internationally.")
+    print("You can manage inventory, track supply and demand, and visualize metrics.")
+    print("\nDesigned for educational purposes in data analysis and supply chain management.")
+    print("\nLoading simulator...")
+    
+    # Add a small delay for dramatic effect
+    time.sleep(2)
+    
+    # Run the simulator
+    run_simulator()
