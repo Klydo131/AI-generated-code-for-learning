@@ -1,0 +1,65 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+from IPython.display import display, clear_output
+import time
+
+# Setup for inline visualization
+plt.ion()
+
+# Initialize empty inventory
+inventory = pd.DataFrame(columns=['Item', 'Quantity', 'Value'])
+
+# Helper: Display styled inventory table
+def display_inventory(df):
+    def highlight_low_stock(val):
+        return 'color: red' if val < 5 else ''
+    styled = df.style.applymap(highlight_low_stock, subset=['Quantity'])
+    clear_output(wait=True)
+    display(styled)
+    plot_inventory_pie(df)
+
+# Helper: Display pie chart
+def plot_inventory_pie(df):
+    plt.clf()
+    plt.figure(figsize=(6, 6))
+    plt.pie(df['Quantity'], labels=df['Item'], autopct='%1.1f%%', startangle=90)
+    plt.title('Inventory Distribution')
+    plt.show()
+    plt.pause(0.001)
+
+# App loop
+while True:
+    action = input("Enter 'deposit', 'buy', or 'quit': ").strip().lower()
+    
+    if action == 'deposit':
+        item = input("Item name: ").strip().capitalize()
+        qty = int(input("Quantity to deposit: "))
+        value = float(input("Item value (per unit): "))
+        if item in inventory['Item'].values:
+            inventory.loc[inventory['Item'] == item, 'Quantity'] += qty
+        else:
+            inventory = pd.concat([inventory, pd.DataFrame([[item, qty, value]], columns=['Item', 'Quantity', 'Value'])], ignore_index=True)
+
+    elif action == 'buy':
+        item = input("Item to buy: ").strip().capitalize()
+        qty = int(input("Quantity to buy: "))
+        if item in inventory['Item'].values:
+            available = inventory.loc[inventory['Item'] == item, 'Quantity'].values[0]
+            if qty <= available:
+                inventory.loc[inventory['Item'] == item, 'Quantity'] -= qty
+                print(f"Purchased {qty} x {item}")
+            else:
+                print(f"Only {available} available.")
+        else:
+            print("Item not found.")
+
+    elif action == 'quit':
+        print("Exiting simulation.")
+        break
+
+    else:
+        print("Invalid command.")
+
+    inventory = inventory[inventory['Quantity'] > 0].reset_index(drop=True)
+    display_inventory(inventory)
+    time.sleep(1)
