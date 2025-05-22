@@ -1,0 +1,972 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from datetime import datetime, timedelta
+import json
+import warnings
+import os
+from IPython.display import display, HTML
+from google.colab import files
+import io
+import base64
+warnings.filterwarnings('ignore')
+
+class HealthCalculator:
+    def __init__(self):
+        self.patient_data = []
+        self.daily_monitoring = []
+        print("🏥 Medical Health Calculator with Daily Monitoring Initialized")
+        print("=" * 60)
+    
+    def calculate_bmi(self, weight_kg, height_cm):
+        """Calculate Body Mass Index"""
+        height_m = height_cm / 100
+        bmi = weight_kg / (height_m ** 2)
+        
+        if bmi < 18.5:
+            category = "Underweight"
+        elif 18.5 <= bmi < 25:
+            category = "Normal weight"
+        elif 25 <= bmi < 30:
+            category = "Overweight"
+        else:
+            category = "Obese"
+            
+        return round(bmi, 2), category
+    
+    def calculate_bmr(self, weight_kg, height_cm, age, gender):
+        """Calculate Basal Metabolic Rate using Mifflin-St Jeor Equation"""
+        if gender.lower() in ['m', 'male']:
+            bmr = (10 * weight_kg) + (6.25 * height_cm) - (5 * age) + 5
+        else:
+            bmr = (10 * weight_kg) + (6.25 * height_cm) - (5 * age) - 161
+        
+        return round(bmr, 2)
+    
+    def calculate_blood_pressure_category(self, systolic, diastolic):
+        """Categorize blood pressure according to AHA guidelines"""
+        if systolic < 120 and diastolic < 80:
+            return "Normal"
+        elif systolic < 130 and diastolic < 80:
+            return "Elevated"
+        elif (130 <= systolic < 140) or (80 <= diastolic < 90):
+            return "Stage 1 Hypertension"
+        elif (140 <= systolic < 180) or (90 <= diastolic < 120):
+            return "Stage 2 Hypertension"
+        else:
+            return "Hypertensive Crisis"
+    
+    def calculate_ideal_weight(self, height_cm, gender):
+        """Calculate ideal body weight using Devine formula"""
+        height_inches = height_cm / 2.54
+        
+        if gender.lower() in ['m', 'male']:
+            ideal_weight = 50 + 2.3 * (height_inches - 60)
+        else:
+            ideal_weight = 45.5 + 2.3 * (height_inches - 60)
+        
+        return round(max(ideal_weight, 45), 2)  # Minimum 45kg
+    
+    def calculate_creatinine_clearance(self, age, weight_kg, creatinine_mg_dl, gender):
+        """Calculate creatinine clearance using Cockcroft-Gault equation"""
+        ccr = ((140 - age) * weight_kg) / (72 * creatinine_mg_dl)
+        
+        if gender.lower() in ['f', 'female']:
+            ccr *= 0.85
+            
+        return round(ccr, 2)
+    
+    def calculate_cardiac_risk_score(self, age, systolic_bp, cholesterol, hdl, smoking, diabetes):
+        """Simple cardiac risk assessment"""
+        score = 0
+        
+        # Age points
+        if age >= 65:
+            score += 3
+        elif age >= 55:
+            score += 2
+        elif age >= 45:
+            score += 1
+        
+        # Blood pressure points
+        if systolic_bp >= 160:
+            score += 3
+        elif systolic_bp >= 140:
+            score += 2
+        elif systolic_bp >= 130:
+            score += 1
+        
+        # Cholesterol points
+        if cholesterol >= 240:
+            score += 2
+        elif cholesterol >= 200:
+            score += 1
+        
+        # HDL points (protective)
+        if hdl >= 60:
+            score -= 1
+        elif hdl < 40:
+            score += 1
+        
+        # Risk factors
+        if smoking:
+            score += 2
+        if diabetes:
+            score += 2
+        
+        # Risk category
+        if score <= 2:
+            risk = "Low Risk"
+        elif score <= 5:
+            risk = "Moderate Risk"
+        else:
+            risk = "High Risk"
+            
+        return score, risk
+    
+    def add_patient_data(self, patient_id, name, age, gender, weight_kg, height_cm, 
+                        systolic_bp=None, diastolic_bp=None, cholesterol=None, 
+                        hdl=None, creatinine=None, smoking=False, diabetes=False):
+        """Add comprehensive patient data"""
+        
+        # Calculate all metrics
+        bmi, bmi_category = self.calculate_bmi(weight_kg, height_cm)
+        bmr = self.calculate_bmr(weight_kg, height_cm, age, gender)
+        ideal_weight = self.calculate_ideal_weight(height_cm, gender)
+        
+        patient_record = {
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'patient_id': patient_id,
+            'name': name,
+            'age': age,
+            'gender': gender,
+            'weight_kg': weight_kg,
+            'height_cm': height_cm,
+            'bmi': bmi,
+            'bmi_category': bmi_category,
+            'bmr': bmr,
+            'ideal_weight_kg': ideal_weight,
+            'weight_status': 'Overweight' if weight_kg > ideal_weight * 1.1 else 'Underweight' if weight_kg < ideal_weight * 0.9 else 'Normal'
+        }
+        
+        # Add BP data if provided
+        if systolic_bp and diastolic_bp:
+            bp_category = self.calculate_blood_pressure_category(systolic_bp, diastolic_bp)
+            patient_record.update({
+                'systolic_bp': systolic_bp,
+                'diastolic_bp': diastolic_bp,
+                'bp_category': bp_category
+            })
+        
+        # Add kidney function if creatinine provided
+        if creatinine:
+            ccr = self.calculate_creatinine_clearance(age, weight_kg, creatinine, gender)
+            patient_record.update({
+                'creatinine_mg_dl': creatinine,
+                'creatinine_clearance': ccr,
+                'kidney_function': 'Normal' if ccr >= 90 else 'Mild' if ccr >= 60 else 'Moderate' if ccr >= 30 else 'Severe'
+            })
+        
+        # Add cardiac risk if relevant data provided
+        if all([systolic_bp, cholesterol, hdl is not None]):
+            risk_score, risk_category = self.calculate_cardiac_risk_score(
+                age, systolic_bp, cholesterol, hdl, smoking, diabetes
+            )
+            patient_record.update({
+                'cholesterol': cholesterol,
+                'hdl': hdl,
+                'smoking': smoking,
+                'diabetes': diabetes,
+                'cardiac_risk_score': risk_score,
+                'cardiac_risk_category': risk_category
+            })
+        
+        self.patient_data.append(patient_record)
+        print(f"✅ Patient {name} (ID: {patient_id}) added successfully!")
+        return patient_record
+    
+    def add_daily_monitoring(self, patient_id, date=None, weight_kg=None, systolic_bp=None, 
+                           diastolic_bp=None, heart_rate=None, temperature=None, 
+                           blood_sugar=None, notes=""):
+        """Add daily monitoring data for existing patients"""
+        
+        # Check if patient exists
+        patient = next((p for p in self.patient_data if p['patient_id'] == patient_id), None)
+        if not patient:
+            print(f"❌ Patient ID {patient_id} not found! Please add patient first.")
+            return None
+        
+        if date is None:
+            date = datetime.now().strftime('%Y-%m-%d')
+        
+        # Calculate BMI if weight provided
+        bmi = None
+        bmi_category = None
+        if weight_kg:
+            bmi, bmi_category = self.calculate_bmi(weight_kg, patient['height_cm'])
+        
+        # Categorize BP if provided
+        bp_category = None
+        if systolic_bp and diastolic_bp:
+            bp_category = self.calculate_blood_pressure_category(systolic_bp, diastolic_bp)
+        
+        # Categorize vital signs
+        temp_status = None
+        if temperature:
+            if temperature < 36.1:
+                temp_status = "Hypothermia"
+            elif temperature > 37.2:
+                temp_status = "Fever"
+            else:
+                temp_status = "Normal"
+        
+        hr_status = None
+        if heart_rate:
+            if heart_rate < 60:
+                hr_status = "Bradycardia"
+            elif heart_rate > 100:
+                hr_status = "Tachycardia"
+            else:
+                hr_status = "Normal"
+        
+        bs_status = None
+        if blood_sugar:
+            if blood_sugar < 70:
+                bs_status = "Hypoglycemia"
+            elif blood_sugar > 140:
+                bs_status = "Hyperglycemia"
+            else:
+                bs_status = "Normal"
+        
+        monitoring_record = {
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'date': date,
+            'patient_id': patient_id,
+            'patient_name': patient['name'],
+            'weight_kg': weight_kg,
+            'bmi': bmi,
+            'bmi_category': bmi_category,
+            'systolic_bp': systolic_bp,
+            'diastolic_bp': diastolic_bp,
+            'bp_category': bp_category,
+            'heart_rate': heart_rate,
+            'hr_status': hr_status,
+            'temperature': temperature,
+            'temp_status': temp_status,
+            'blood_sugar': blood_sugar,
+            'bs_status': bs_status,
+            'notes': notes
+        }
+        
+        self.daily_monitoring.append(monitoring_record)
+        print(f"✅ Daily monitoring data added for {patient['name']} on {date}")
+        return monitoring_record
+    
+    def get_patient_summary(self, patient_id):
+        """Get summary for a specific patient"""
+        patient = next((p for p in self.patient_data if p['patient_id'] == patient_id), None)
+        
+        if not patient:
+            print(f"❌ Patient ID {patient_id} not found!")
+            return None
+        
+        print(f"\n📋 PATIENT SUMMARY - {patient['name']}")
+        print("=" * 40)
+        print(f"Patient ID: {patient['patient_id']}")
+        print(f"Age: {patient['age']} years | Gender: {patient['gender']}")
+        print(f"Height: {patient['height_cm']} cm | Weight: {patient['weight_kg']} kg")
+        print(f"BMI: {patient['bmi']} ({patient['bmi_category']})")
+        print(f"BMR: {patient['bmr']} calories/day")
+        print(f"Ideal Weight: {patient['ideal_weight_kg']} kg ({patient['weight_status']})")
+        
+        if 'systolic_bp' in patient:
+            print(f"Blood Pressure: {patient['systolic_bp']}/{patient['diastolic_bp']} mmHg ({patient['bp_category']})")
+        
+        if 'creatinine_clearance' in patient:
+            print(f"Kidney Function: {patient['kidney_function']} (CCr: {patient['creatinine_clearance']} mL/min)")
+        
+        if 'cardiac_risk_score' in patient:
+            print(f"Cardiac Risk: {patient['cardiac_risk_category']} (Score: {patient['cardiac_risk_score']})")
+        
+        print(f"Last Updated: {patient['timestamp']}")
+        
+        # Show recent monitoring data
+        recent_monitoring = [m for m in self.daily_monitoring if m['patient_id'] == patient_id]
+        if recent_monitoring:
+            print(f"\n📊 Recent Monitoring Data ({len(recent_monitoring)} entries):")
+            for record in recent_monitoring[-3:]:  # Show last 3 entries
+                print(f"  {record['date']}: BP {record['systolic_bp']}/{record['diastolic_bp']} | HR {record['heart_rate']} | Temp {record['temperature']}°C")
+        
+        return patient
+    
+    def get_monitoring_history(self, patient_id, days=7):
+        """Get monitoring history for a patient"""
+        patient_monitoring = [m for m in self.daily_monitoring if m['patient_id'] == patient_id]
+        
+        if not patient_monitoring:
+            print(f"❌ No monitoring data found for patient {patient_id}")
+            return None
+        
+        # Sort by date
+        patient_monitoring.sort(key=lambda x: x['date'], reverse=True)
+        
+        print(f"\n📊 MONITORING HISTORY - Last {days} days")
+        print("=" * 50)
+        
+        for record in patient_monitoring[:days]:
+            print(f"\n📅 Date: {record['date']}")
+            if record['weight_kg']:
+                print(f"   Weight: {record['weight_kg']} kg (BMI: {record['bmi']})")
+            if record['systolic_bp']:
+                print(f"   BP: {record['systolic_bp']}/{record['diastolic_bp']} mmHg ({record['bp_category']})")
+            if record['heart_rate']:
+                print(f"   Heart Rate: {record['heart_rate']} bpm ({record['hr_status']})")
+            if record['temperature']:
+                print(f"   Temperature: {record['temperature']}°C ({record['temp_status']})")
+            if record['blood_sugar']:
+                print(f"   Blood Sugar: {record['blood_sugar']} mg/dL ({record['bs_status']})")
+            if record['notes']:
+                print(f"   Notes: {record['notes']}")
+        
+        return patient_monitoring[:days]
+    
+    def export_to_csv(self, filename=None, include_monitoring=True):
+        """Export all patient data to CSV with auto-download"""
+        if not self.patient_data:
+            print("❌ No patient data to export!")
+            return None
+        
+        if filename is None:
+            filename = f"patient_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        
+        # Export main patient data
+        df_patients = pd.DataFrame(self.patient_data)
+        df_patients.to_csv(filename, index=False)
+        
+        # Export monitoring data if available
+        monitoring_filename = None
+        if include_monitoring and self.daily_monitoring:
+            monitoring_filename = f"daily_monitoring_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            df_monitoring = pd.DataFrame(self.daily_monitoring)
+            df_monitoring.to_csv(monitoring_filename, index=False)
+        
+        print(f"✅ Patient data exported to {filename}")
+        print(f"📊 Total patients: {len(self.patient_data)}")
+        
+        if monitoring_filename:
+            print(f"✅ Monitoring data exported to {monitoring_filename}")
+            print(f"📊 Total monitoring entries: {len(self.daily_monitoring)}")
+        
+        # Auto-download in Google Colab
+        try:
+            files.download(filename)
+            if monitoring_filename:
+                files.download(monitoring_filename)
+            print("📥 Files downloaded successfully!")
+        except:
+            print("💡 Note: To download files manually, use files.download('filename')")
+        
+        return filename, monitoring_filename
+    
+    def export_to_json(self, filename=None):
+        """Export all data to JSON with auto-download"""
+        if not self.patient_data:
+            print("❌ No patient data to export!")
+            return None
+        
+        if filename is None:
+            filename = f"health_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        
+        export_data = {
+            'patients': self.patient_data,
+            'daily_monitoring': self.daily_monitoring,
+            'export_timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'total_patients': len(self.patient_data),
+            'total_monitoring_entries': len(self.daily_monitoring)
+        }
+        
+        with open(filename, 'w') as f:
+            json.dump(export_data, f, indent=2)
+        
+        print(f"✅ Complete health data exported to {filename}")
+        
+        # Auto-download in Google Colab
+        try:
+            files.download(filename)
+            print("📥 File downloaded successfully!")
+        except:
+            print("💡 Note: To download files manually, use files.download('filename')")
+        
+        return filename
+    
+    def load_from_csv(self, patient_file, monitoring_file=None):
+        """Load patient data from CSV files"""
+        try:
+            # Load patient data
+            df_patients = pd.read_csv(patient_file)
+            self.patient_data = df_patients.to_dict('records')
+            print(f"✅ Loaded {len(self.patient_data)} patient records from {patient_file}")
+            
+            # Load monitoring data if provided
+            if monitoring_file:
+                df_monitoring = pd.read_csv(monitoring_file)
+                self.daily_monitoring = df_monitoring.to_dict('records')
+                print(f"✅ Loaded {len(self.daily_monitoring)} monitoring records from {monitoring_file}")
+                
+        except Exception as e:
+            print(f"❌ Error loading data: {str(e)}")
+    
+    def upload_data_files(self):
+        """Upload data files in Google Colab"""
+        print("📤 Please upload your data files...")
+        try:
+            uploaded = files.upload()
+            
+            for filename in uploaded.keys():
+                if 'patient' in filename.lower() and filename.endswith('.csv'):
+                    df = pd.read_csv(filename)
+                    self.patient_data = df.to_dict('records')
+                    print(f"✅ Loaded {len(self.patient_data)} patients from {filename}")
+                
+                elif 'monitoring' in filename.lower() and filename.endswith('.csv'):
+                    df = pd.read_csv(filename)
+                    self.daily_monitoring = df.to_dict('records')
+                    print(f"✅ Loaded {len(self.daily_monitoring)} monitoring entries from {filename}")
+                
+                elif filename.endswith('.json'):
+                    with open(filename, 'r') as f:
+                        data = json.load(f)
+                    
+                    if 'patients' in data:
+                        self.patient_data = data['patients']
+                        print(f"✅ Loaded {len(self.patient_data)} patients from JSON")
+                    
+                    if 'daily_monitoring' in data:
+                        self.daily_monitoring = data['daily_monitoring']
+                        print(f"✅ Loaded {len(self.daily_monitoring)} monitoring entries from JSON")
+        
+        except Exception as e:
+            print(f"❌ Error uploading files: {str(e)}")
+    
+    def generate_monitoring_trends(self, patient_id, metric='weight'):
+        """Generate trend analysis for patient monitoring data"""
+        patient_monitoring = [m for m in self.daily_monitoring if m['patient_id'] == patient_id]
+        
+        if not patient_monitoring:
+            print(f"❌ No monitoring data found for patient {patient_id}")
+            return
+        
+        # Sort by date
+        patient_monitoring.sort(key=lambda x: x['date'])
+        
+        # Get patient name
+        patient = next((p for p in self.patient_data if p['patient_id'] == patient_id), None)
+        patient_name = patient['name'] if patient else patient_id
+        
+        # Create DataFrame for analysis
+        df = pd.DataFrame(patient_monitoring)
+        df['date'] = pd.to_datetime(df['date'])
+        
+        # Create trend plots
+        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+        fig.suptitle(f'Health Monitoring Trends - {patient_name}', fontsize=14, fontweight='bold')
+        
+        # Weight trend
+        if 'weight_kg' in df.columns and df['weight_kg'].notna().any():
+            axes[0, 0].plot(df['date'], df['weight_kg'], marker='o', color='blue')
+            axes[0, 0].set_title('Weight Trend')
+            axes[0, 0].set_ylabel('Weight (kg)')
+            axes[0, 0].tick_params(axis='x', rotation=45)
+        
+        # Blood pressure trend
+        if all(col in df.columns for col in ['systolic_bp', 'diastolic_bp']):
+            axes[0, 1].plot(df['date'], df['systolic_bp'], marker='o', label='Systolic', color='red')
+            axes[0, 1].plot(df['date'], df['diastolic_bp'], marker='s', label='Diastolic', color='orange')
+            axes[0, 1].set_title('Blood Pressure Trend')
+            axes[0, 1].set_ylabel('BP (mmHg)')
+            axes[0, 1].legend()
+            axes[0, 1].tick_params(axis='x', rotation=45)
+        
+        # Heart rate trend
+        if 'heart_rate' in df.columns and df['heart_rate'].notna().any():
+            axes[1, 0].plot(df['date'], df['heart_rate'], marker='o', color='green')
+            axes[1, 0].set_title('Heart Rate Trend')
+            axes[1, 0].set_ylabel('Heart Rate (bpm)')
+            axes[1, 0].tick_params(axis='x', rotation=45)
+        
+        # Temperature trend
+        if 'temperature' in df.columns and df['temperature'].notna().any():
+            axes[1, 1].plot(df['date'], df['temperature'], marker='o', color='purple')
+            axes[1, 1].set_title('Temperature Trend')
+            axes[1, 1].set_ylabel('Temperature (°C)')
+            axes[1, 1].tick_params(axis='x', rotation=45)
+        
+        plt.tight_layout()
+        plt.show()
+        
+        return df
+    
+    def generate_summary_report(self):
+        """Generate summary statistics and visualizations"""
+        if not self.patient_data:
+            print("❌ No patient data available for analysis!")
+            return
+        
+        df = pd.DataFrame(self.patient_data)
+        
+        print("\n📊 HEALTH ANALYTICS SUMMARY")
+        print("=" * 50)
+        print(f"Total Patients: {len(df)}")
+        print(f"Average Age: {df['age'].mean():.1f} years")
+        print(f"Average BMI: {df['bmi'].mean():.1f}")
+        print(f"Daily Monitoring Entries: {len(self.daily_monitoring)}")
+        
+        # BMI distribution
+        if 'bmi_category' in df.columns:
+            print("\n🏋️ BMI Distribution:")
+            bmi_counts = df['bmi_category'].value_counts()
+            for category, count in bmi_counts.items():
+                percentage = (count / len(df)) * 100
+                print(f"  {category}: {count} ({percentage:.1f}%)")
+        
+        # Blood pressure analysis
+        if 'bp_category' in df.columns:
+            print("\n🩺 Blood Pressure Distribution:")
+            bp_counts = df['bp_category'].value_counts()
+            for category, count in bp_counts.items():
+                percentage = (count / len(df)) * 100
+                print(f"  {category}: {count} ({percentage:.1f}%)")
+        
+        # Generate visualizations
+        self._create_visualizations(df)
+    
+    def _create_visualizations(self, df):
+        """Create health data visualizations"""
+        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+        fig.suptitle('Health Analytics Dashboard', fontsize=16, fontweight='bold')
+        
+        # BMI distribution
+        if 'bmi_category' in df.columns:
+            bmi_counts = df['bmi_category'].value_counts()
+            axes[0, 0].pie(bmi_counts.values, labels=bmi_counts.index, autopct='%1.1f%%', startangle=90)
+            axes[0, 0].set_title('BMI Category Distribution')
+        
+        # Age vs BMI scatter
+        axes[0, 1].scatter(df['age'], df['bmi'], alpha=0.6, color='steelblue')
+        axes[0, 1].set_xlabel('Age (years)')
+        axes[0, 1].set_ylabel('BMI')
+        axes[0, 1].set_title('Age vs BMI')
+        axes[0, 1].grid(True, alpha=0.3)
+        
+        # Gender distribution
+        if 'gender' in df.columns:
+            gender_counts = df['gender'].value_counts()
+            axes[1, 0].bar(gender_counts.index, gender_counts.values, color=['lightcoral', 'lightblue'])
+            axes[1, 0].set_title('Gender Distribution')
+            axes[1, 0].set_ylabel('Count')
+        
+        # BMI histogram
+        axes[1, 1].hist(df['bmi'], bins=15, color='lightgreen', alpha=0.7, edgecolor='black')
+        axes[1, 1].set_xlabel('BMI')
+        axes[1, 1].set_ylabel('Frequency')
+        axes[1, 1].set_title('BMI Distribution')
+        axes[1, 1].axvline(df['bmi'].mean(), color='red', linestyle='--', label=f'Mean: {df["bmi"].mean():.1f}')
+        axes[1, 1].legend()
+        
+        plt.tight_layout()
+        plt.show()
+
+# Example usage and demonstration
+def main():
+    # Initialize the calculator
+    calc = HealthCalculator()
+    
+    print("🏥 MEDICAL HEALTH CALCULATOR WITH DAILY MONITORING")
+    print("=" * 60)
+    
+    # Add sample patients
+    print("\n📝 Adding Sample Patients...")
+    
+    # Patient 1 - Complete data
+    calc.add_patient_data(
+        patient_id="P001",
+        name="John Smith",
+        age=45,
+        gender="male",
+        weight_kg=80,
+        height_cm=175,
+        systolic_bp=140,
+        diastolic_bp=90,
+        cholesterol=220,
+        hdl=45,
+        creatinine=1.2,
+        smoking=True,
+        diabetes=False
+    )
+    
+    # Patient 2 - Basic data
+    calc.add_patient_data(
+        patient_id="P002",
+        name="Sarah Johnson",
+        age=32,
+        gender="female",
+        weight_kg=65,
+        height_cm=160,
+        systolic_bp=120,
+        diastolic_bp=80
+    )
+    
+    # Patient 3 - Another complete case
+    calc.add_patient_data(
+        patient_id="P003",
+        name="Michael Brown",
+        age=55,
+        gender="male",
+        weight_kg=95,
+        height_cm=180,
+        systolic_bp=160,
+        diastolic_bp=100,
+        cholesterol=280,
+        hdl=35,
+        creatinine=1.5,
+        smoking=False,
+        diabetes=True
+    )
+    
+    print("\n📊 Adding Daily Monitoring Data...")
+    
+    # Add some daily monitoring data
+    calc.add_daily_monitoring("P001", "2024-01-15", weight_kg=79.5, systolic_bp=135, 
+                            diastolic_bp=88, heart_rate=72, temperature=37.1, 
+                            notes="Patient reports feeling better")
+    
+    calc.add_daily_monitoring("P001", "2024-01-16", weight_kg=79.2, systolic_bp=138, 
+                            diastolic_bp=90, heart_rate=75, temperature=36.8)
+    
+    calc.add_daily_monitoring("P002", "2024-01-15", weight_kg=64.8, systolic_bp=118, 
+                            diastolic_bp=78, heart_rate=68, temperature=36.6, 
+                            blood_sugar=95)
+    
+    # Display individual patient summaries
+    print("\n" + "="*60)
+    calc.get_patient_summary("P001")
+    calc.get_monitoring_history("P001", days=5)
+    
+    # Generate trend analysis
+    print("\n📈 GENERATING TREND ANALYSIS")
+    print("=" * 40)
+    calc.generate_monitoring_trends("P001")
+    
+    # Generate analytics report
+    calc.generate_summary_report()
+    
+    # Export data
+    print("\n💾 EXPORTING DATA WITH AUTO-DOWNLOAD")
+    print("=" * 40)
+    csv_files = calc.export_to_csv()
+    json_file = calc.export_to_json()
+    
+    print("\n✅ Demo completed successfully!")
+    print("📋 New Features Added:")
+    print("   • Daily monitoring data tracking")
+    print("   • Automatic file downloads in Google Colab")
+    print("   • File upload functionality")
+    print("   • Patient monitoring history")
+    print("   • Health trend analysis and visualization")
+    print("   • Vital signs categorization")
+    print("   • Comprehensive data export/import")
+    
+    return calc
+
+# Interactive functions for daily monitoring
+def quick_daily_monitoring():
+    """Quick daily monitoring input"""
+    print("\n📊 QUICK DAILY MONITORING")
+    print("=" * 35)
+    
+    try:
+        patient_id = input("Enter Patient ID: ")
+        date = input("Enter date (YYYY-MM-DD) or press Enter for today: ").strip()
+        if not date:
+            date = datetime.now().strftime('%Y-%m-%d')
+        
+        weight = input("Weight (kg) - optional: ").strip()
+        weight = float(weight) if weight else None
+        
+        systolic = input("Systolic BP - optional: ").strip()
+        systolic = int(systolic) if systolic else None
+        
+        diastolic = input("Diastolic BP - optional: ").strip()
+        diastolic = int(diastolic) if diastolic else None
+        
+        hr = input("Heart Rate - optional: ").strip()
+        hr = int(hr) if hr else None
+        
+        temp = input("Temperature (°C) - optional: ").strip()
+        temp = float(temp) if temp else None
+        
+        notes = input("Notes - optional: ").strip()
+        
+        # Note: You'll need to have a calculator instance to use this
+        print("💡 Use this with an existing HealthCalculator instance:")
+        print("   calc.add_daily_monitoring(patient_id, date, weight_kg, systolic_bp, diastolic_bp, heart_rate, temperature, notes)")
+        print(f"📝 Data to add: Patient {patient_id}, Date: {date}")
+        
+        return {
+            'patient_id': patient_id,
+            'date': date,
+            'weight_kg': weight,
+            'systolic_bp': systolic,
+            'diastolic_bp': diastolic,
+            'heart_rate': hr,
+            'temperature': temp,
+            'notes': notes
+        }
+        
+    except ValueError:
+        print("❌ Please enter valid numbers for numeric fields!")
+
+def batch_monitoring_input():
+    """Input multiple monitoring entries at once"""
+    print("\n📊 BATCH DAILY MONITORING INPUT")
+    print("=" * 40)
+    print("Enter monitoring data (press Enter on empty patient ID to finish)")
+    
+    monitoring_data = []
+    
+    while True:
+        print(f"\n--- Entry #{len(monitoring_data) + 1} ---")
+        patient_id = input("Patient ID (or Enter to finish): ").strip()
+        
+        if not patient_id:
+            break
+            
+        try:
+            date = input("Date (YYYY-MM-DD) or Enter for today: ").strip()
+            if not date:
+                date = datetime.now().strftime('%Y-%m-%d')
+            
+            # Get all monitoring parameters
+            weight = input("Weight (kg): ").strip()
+            weight = float(weight) if weight else None
+            
+            systolic = input("Systolic BP: ").strip()
+            systolic = int(systolic) if systolic else None
+            
+            diastolic = input("Diastolic BP: ").strip()
+            diastolic = int(diastolic) if diastolic else None
+            
+            hr = input("Heart Rate: ").strip()
+            hr = int(hr) if hr else None
+            
+            temp = input("Temperature (°C): ").strip()
+            temp = float(temp) if temp else None
+            
+            bs = input("Blood Sugar (mg/dL): ").strip()
+            bs = int(bs) if bs else None
+            
+            notes = input("Notes: ").strip()
+            
+            entry = {
+                'patient_id': patient_id,
+                'date': date,
+                'weight_kg': weight,
+                'systolic_bp': systolic,
+                'diastolic_bp': diastolic,
+                'heart_rate': hr,
+                'temperature': temp,
+                'blood_sugar': bs,
+                'notes': notes
+            }
+            
+            monitoring_data.append(entry)
+            print(f"✅ Entry added for Patient {patient_id}")
+            
+        except ValueError:
+            print("❌ Invalid input, skipping this entry")
+            continue
+    
+    print(f"\n✅ Collected {len(monitoring_data)} monitoring entries")
+    return monitoring_data
+
+# Quick calculator functions
+def quick_bmi_calculator():
+    """Quick BMI calculator function"""
+    print("\n🏋️ QUICK BMI CALCULATOR")
+    print("=" * 30)
+    
+    try:
+        weight = float(input("Enter weight (kg): "))
+        height = float(input("Enter height (cm): "))
+        
+        calc = HealthCalculator()
+        bmi, category = calc.calculate_bmi(weight, height)
+        
+        print(f"\n📊 Results:")
+        print(f"BMI: {bmi}")
+        print(f"Category: {category}")
+        
+        return bmi, category
+        
+    except ValueError:
+        print("❌ Please enter valid numbers!")
+        return None, None
+
+def quick_bp_checker():
+    """Quick blood pressure checker"""
+    print("\n🩺 QUICK BLOOD PRESSURE CHECKER")
+    print("=" * 40)
+    
+    try:
+        systolic = int(input("Enter systolic pressure: "))
+        diastolic = int(input("Enter diastolic pressure: "))
+        
+        calc = HealthCalculator()
+        category = calc.calculate_blood_pressure_category(systolic, diastolic)
+        
+        print(f"\n📊 Results:")
+        print(f"Blood Pressure: {systolic}/{diastolic} mmHg")
+        print(f"Category: {category}")
+        
+        # Risk assessment
+        if category in ["Stage 2 Hypertension", "Hypertensive Crisis"]:
+            print("⚠️  HIGH RISK - Immediate medical attention recommended!")
+        elif category == "Stage 1 Hypertension":
+            print("⚠️  MODERATE RISK - Monitor closely, consider treatment")
+        elif category == "Elevated":
+            print("💡 CAUTION - Lifestyle modifications recommended")
+        else:
+            print("✅ NORMAL - Continue healthy lifestyle")
+        
+        return systolic, diastolic, category
+        
+    except ValueError:
+        print("❌ Please enter valid numbers!")
+        return None, None, None
+
+# Data management utilities
+def create_sample_monitoring_data(calc, days=7):
+    """Create sample monitoring data for demonstration"""
+    print(f"\n📊 Creating {days} days of sample monitoring data...")
+    
+    patients = ["P001", "P002", "P003"]
+    
+    for i in range(days):
+        date = (datetime.now() - timedelta(days=days-i-1)).strftime('%Y-%m-%d')
+        
+        for patient_id in patients:
+            # Generate realistic but random vital signs
+            weight_variation = np.random.normal(0, 0.5)  # Small daily weight variation
+            bp_variation = np.random.normal(0, 5)  # BP variation
+            
+            base_weight = 80 if patient_id == "P001" else 65 if patient_id == "P002" else 95
+            base_systolic = 140 if patient_id == "P001" else 120 if patient_id == "P002" else 160
+            base_diastolic = 90 if patient_id == "P001" else 80 if patient_id == "P002" else 100
+            
+            calc.add_daily_monitoring(
+                patient_id=patient_id,
+                date=date,
+                weight_kg=round(base_weight + weight_variation, 1),
+                systolic_bp=int(base_systolic + bp_variation),
+                diastolic_bp=int(base_diastolic + bp_variation/2),
+                heart_rate=np.random.randint(60, 85),
+                temperature=round(np.random.normal(36.8, 0.3), 1),
+                blood_sugar=np.random.randint(80, 120),
+                notes=f"Day {i+1} routine check"
+            )
+    
+    print(f"✅ Created {days * len(patients)} monitoring entries")
+
+# Main execution function with enhanced features
+def enhanced_demo():
+    """Enhanced demonstration with all features"""
+    print("🏥 ENHANCED MEDICAL HEALTH CALCULATOR DEMO")
+    print("=" * 60)
+    
+    # Initialize calculator
+    calc = HealthCalculator()
+    
+    # Add patients (using the existing main function's patient data)
+    calc.add_patient_data("P001", "John Smith", 45, "male", 80, 175, 140, 90, 220, 45, 1.2, True, False)
+    calc.add_patient_data("P002", "Sarah Johnson", 32, "female", 65, 160, 120, 80)
+    calc.add_patient_data("P003", "Michael Brown", 55, "male", 95, 180, 160, 100, 280, 35, 1.5, False, True)
+    
+    # Create sample monitoring data
+    create_sample_monitoring_data(calc, days=14)
+    
+    # Demonstrate all features
+    print("\n🔍 COMPREHENSIVE PATIENT ANALYSIS")
+    print("=" * 45)
+    
+    for patient_id in ["P001", "P002", "P003"]:
+        print(f"\n{'='*20} {patient_id} {'='*20}")
+        calc.get_patient_summary(patient_id)
+        calc.get_monitoring_history(patient_id, days=5)
+        
+        print(f"\n📈 Generating trends for {patient_id}...")
+        try:
+            calc.generate_monitoring_trends(patient_id)
+        except Exception as e:
+            print(f"Note: Trend generation requires monitoring data - {str(e)}")
+    
+    # Generate comprehensive report
+    calc.generate_summary_report()
+    
+    # Export all data
+    print("\n💾 EXPORTING COMPREHENSIVE DATA")
+    print("=" * 40)
+    csv_files = calc.export_to_csv(include_monitoring=True)
+    json_file = calc.export_to_json()
+    
+    print("\n🎯 FEATURE SUMMARY")
+    print("=" * 30)
+    print("✅ Patient Management:")
+    print("   • Add/edit patient profiles")
+    print("   • Calculate BMI, BMR, ideal weight")
+    print("   • Assess cardiac risk")
+    print("   • Kidney function analysis")
+    print("\n✅ Daily Monitoring:")
+    print("   • Weight tracking")
+    print("   • Vital signs monitoring")
+    print("   • Blood sugar tracking")
+    print("   • Clinical notes")
+    print("\n✅ Data Management:")
+    print("   • CSV/JSON export with auto-download")
+    print("   • File upload functionality")
+    print("   • Data import/export")
+    print("   • Batch data entry")
+    print("\n✅ Analytics & Visualization:")
+    print("   • Patient trend analysis")
+    print("   • Health dashboards")
+    print("   • Risk assessments")
+    print("   • Statistical summaries")
+    
+    return calc
+
+# Run the enhanced demo
+if __name__ == "__main__":
+    calculator = enhanced_demo()
+    
+    print("\n" + "="*60)
+    print("🔧 AVAILABLE FUNCTIONS:")
+    print("=" * 30)
+    print("📊 Daily Monitoring:")
+    print("   • calculator.add_daily_monitoring(patient_id, date, ...)")
+    print("   • calculator.get_monitoring_history(patient_id)")
+    print("   • calculator.generate_monitoring_trends(patient_id)")
+    print("\n💾 Data Management:")
+    print("   • calculator.export_to_csv() - Auto-downloads files")
+    print("   • calculator.export_to_json() - Auto-downloads files")
+    print("   • calculator.upload_data_files() - Upload existing data")
+    print("\n🔧 Quick Tools:")
+    print("   • quick_bmi_calculator()")
+    print("   • quick_bp_checker()")
+    print("   • quick_daily_monitoring()")
+    print("   • batch_monitoring_input()")
+    print("\n📈 Analysis:")
+    print("   • calculator.generate_summary_report()")
+    print("   • create_sample_monitoring_data(calculator, days=7)")
+    print("="*60)
+    print("💡 TIP: All exports automatically download in Google Colab!")
+    print("💡 TIP: Use calculator.upload_data_files() to import existing data!")
