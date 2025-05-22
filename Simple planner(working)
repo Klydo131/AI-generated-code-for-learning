@@ -1,0 +1,349 @@
+import os
+import pandas as pd
+from datetime import datetime
+from IPython.display import display, HTML, clear_output
+import ipywidgets as widgets
+
+class Planner:
+    def __init__(self):
+        self.filename = 'planner_tasks.csv'
+        self.load_tasks()
+
+    def load_tasks(self):
+        """Load tasks from CSV or create empty dataframe if file doesn't exist"""
+        try:
+            if os.path.exists(self.filename):
+                self.tasks = pd.read_csv(self.filename)
+                # Ensure all required columns exist
+                required_cols = ['Task', 'Due Date', 'Priority', 'Status', 'Created']
+                for col in required_cols:
+                    if col not in self.tasks.columns:
+                        self.tasks[col] = ''
+            else:
+                self.tasks = pd.DataFrame(columns=['Task', 'Due Date', 'Priority', 'Status', 'Created'])
+        except Exception as e:
+            print(f"Error loading tasks: {str(e)}. Creating new task list.")
+            self.tasks = pd.DataFrame(columns=['Task', 'Due Date', 'Priority', 'Status', 'Created'])
+
+    def save_tasks(self):
+        """Save tasks to CSV file"""
+        try:
+            self.tasks.to_csv(self.filename, index=False)
+        except Exception as e:
+            print(f"Error saving tasks: {str(e)}")
+            # Try to save to a backup file
+            try:
+                backup_file = f"planner_tasks_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                self.tasks.to_csv(backup_file, index=False)
+                print(f"Tasks saved to backup file: {backup_file}")
+            except:
+                print("Failed to save backup file as well.")
+
+    def add_task(self, task, due_date, priority='Medium'):
+        """Add a new task to the planner"""
+        # Basic validation
+        if not task or not task.strip():
+            raise ValueError("Task description cannot be empty")
+
+        # Validate date format
+        try:
+            if due_date and due_date.strip():
+                datetime.strptime(due_date, '%Y-%m-%d')
+        except ValueError:
+            raise ValueError("Invalid date format. Please use YYYY-MM-DD")
+
+        new_task = pd.DataFrame({
+            'Task': [task.strip()],
+            'Due Date': [due_date.strip() if due_date else ''],
+            'Priority': [priority],
+            'Status': ['Pending'],
+            'Created': [datetime.now().strftime('%Y-%m-%d %H:%M')]
+        })
+        self.tasks = pd.concat([self.tasks, new_task], ignore_index=True)
+        self.save_tasks()
+        return f"Task '{task}' added successfully!"
+
+    def view_tasks(self, status=None, sort_by='Due Date'):
+        """View tasks with optional filtering by status and sorting"""
+        if len(self.tasks) == 0:
+            return "No tasks found."
+
+        filtered_tasks = self.tasks.copy()
+        if status:
+            filtered_tasks = filtered_tasks[filtered_tasks['Status'] == status]
+
+        if len(filtered_tasks) == 0:
+            return f"No tasks with status '{status}' found."
+
+        # Reset index and add it as a column for display
+        filtered_tasks = filtered_tasks.reset_index()
+        filtered_tasks = filtered_tasks.rename(columns={'index': 'Task #'})
+        
+        # Sort the tasks
+        try:
+            if sort_by in filtered_tasks.columns:
+                filtered_tasks = filtered_tasks.sort_values(by=sort_by)
+        except Exception:
+            pass  # If sorting fails, just return unsorted
+
+        return filtered_tasks
+
+    def update_task(self, task_idx, column, new_value):
+        """Update a specific field of a task"""
+        try:
+            task_idx = int(task_idx)
+            if task_idx < 0 or task_idx >= len(self.tasks):
+                return f"Error: Task index {task_idx} not found. Valid range: 0-{len(self.tasks)-1}"
+
+            self.tasks.at[task_idx, column] = new_value
+            self.save_tasks()
+            return f"Task {task_idx} updated successfully!"
+        except Exception as e:
+            return f"Error updating task: {str(e)}"
+
+    def mark_task_complete(self, task_idx):
+        """Mark a task as complete"""
+        return self.update_task(task_idx, 'Status', 'Completed')
+
+    def delete_task(self, task_idx):
+        """Delete a task from the planner"""
+        try:
+            task_idx = int(task_idx)
+            if task_idx < 0 or task_idx >= len(self.tasks):
+                return f"Error: Task index {task_idx} not found. Valid range: 0-{len(self.tasks)-1}"
+
+            task_name = self.tasks.iloc[task_idx]['Task']
+            self.tasks = self.tasks.drop(task_idx).reset_index(drop=True)
+            self.save_tasks()
+            return f"Task '{task_name}' deleted successfully!"
+        except Exception as e:
+            return f"Error deleting task: {str(e)}"
+
+
+# Interactive UI for the planner
+class PlannerUI:
+    def __init__(self):
+        self.planner = Planner()
+
+    def display_main_menu(self):
+        """Display the main menu with buttons for different actions"""
+        clear_output(wait=True)
+        print("📝 Simple Python Planner 📝")
+
+        add_task_btn = widgets.Button(description="Add Task", button_style="success")
+        view_tasks_btn = widgets.Button(description="View Tasks", button_style="info")
+        mark_complete_btn = widgets.Button(description="Mark Complete", button_style="warning")
+        delete_task_btn = widgets.Button(description="Delete Task", button_style="danger")
+
+        add_task_btn.on_click(lambda b: self.show_add_task_form())
+        view_tasks_btn.on_click(lambda b: self.show_task_view())
+        mark_complete_btn.on_click(lambda b: self.show_mark_complete())
+        delete_task_btn.on_click(lambda b: self.show_delete_task())
+
+        # Display status of tasks if any exist
+        task_status = ""
+        if len(self.planner.tasks) > 0:
+            pending = len(self.planner.tasks[self.planner.tasks['Status'] == 'Pending'])
+            completed = len(self.planner.tasks[self.planner.tasks['Status'] == 'Completed'])
+            task_status = f"\nYou have {pending} pending and {completed} completed tasks."
+
+        display(widgets.HTML(f"<h3>Welcome to your planner!{task_status}</h3>"))
+        display(widgets.HBox([add_task_btn, view_tasks_btn, mark_complete_btn, delete_task_btn]))
+
+    def show_add_task_form(self):
+        """Display form for adding a new task"""
+        clear_output(wait=True)
+        print("📝 Add New Task")
+
+        task_input = widgets.Text(description="Task:", placeholder="Enter task description")
+        date_input = widgets.Text(description="Due Date:", placeholder="YYYY-MM-DD")
+        priority_dropdown = widgets.Dropdown(
+            description="Priority:",
+            options=["Low", "Medium", "High"],
+            value="Medium"
+        )
+
+        submit_btn = widgets.Button(description="Add Task", button_style="success")
+        back_btn = widgets.Button(description="Back", button_style="")
+        output = widgets.Output()
+
+        def on_submit(b):
+            if not task_input.value.strip():
+                with output:
+                    clear_output()
+                    print("Error: Task description cannot be empty!")
+                return
+
+            try:
+                result = self.planner.add_task(
+                    task_input.value,
+                    date_input.value,
+                    priority_dropdown.value
+                )
+                clear_output(wait=True)
+                print(result)
+                back_button = widgets.Button(description="Back to Menu", button_style="")
+                back_button.on_click(lambda b: self.display_main_menu())
+                display(back_button)
+            except Exception as e:
+                clear_output(wait=True)
+                print(f"Error adding task: {str(e)}")
+                back_button = widgets.Button(description="Back to Menu", button_style="")
+                back_button.on_click(lambda b: self.display_main_menu())
+                display(back_button)
+
+        submit_btn.on_click(on_submit)
+        back_btn.on_click(lambda b: self.display_main_menu())
+
+        display(task_input, date_input, priority_dropdown,
+                widgets.HBox([submit_btn, back_btn]), output)
+
+    def show_task_view(self):
+        """Display current tasks with filtering options"""
+        clear_output(wait=True)
+        print("📋 View Tasks")
+
+        status_dropdown = widgets.Dropdown(
+            description="Filter:",
+            options=["All", "Pending", "Completed"],
+            value="All"
+        )
+        sort_dropdown = widgets.Dropdown(
+            description="Sort by:",
+            options=["Due Date", "Priority", "Created"],
+            value="Due Date"
+        )
+
+        refresh_btn = widgets.Button(description="Refresh", button_style="info")
+        back_btn = widgets.Button(description="Back", button_style="")
+
+        output = widgets.Output()
+
+        def show_tasks(b=None):
+            status = None if status_dropdown.value == "All" else status_dropdown.value
+            tasks = self.planner.view_tasks(status, sort_dropdown.value)
+
+            with output:
+                clear_output()
+                if isinstance(tasks, str):
+                    print(tasks)
+                else:
+                    # Apply simple styling for completed tasks
+                    def highlight_completed(row):
+                        return ['background-color: lightgreen' if row['Status'] == 'Completed' 
+                               else 'background-color: white' for _ in row]
+                    
+                    styled_df = tasks.style.apply(highlight_completed, axis=1)
+                    display(styled_df)
+
+        status_dropdown.observe(lambda change: show_tasks() if change.name == 'value' else None, names='value')
+        sort_dropdown.observe(lambda change: show_tasks() if change.name == 'value' else None, names='value')
+        refresh_btn.on_click(show_tasks)
+        back_btn.on_click(lambda b: self.display_main_menu())
+
+        display(widgets.HBox([status_dropdown, sort_dropdown, refresh_btn, back_btn]))
+        display(output)
+        show_tasks()
+
+    def show_mark_complete(self):
+        """Display interface for marking tasks as complete"""
+        clear_output(wait=True)
+        print("✅ Mark Task as Complete")
+
+        # Check if there are any tasks
+        if len(self.planner.tasks) == 0:
+            print("No tasks found to mark as complete.")
+            back_btn = widgets.Button(description="Back to Menu", button_style="")
+            back_btn.on_click(lambda b: self.display_main_menu())
+            display(back_btn)
+            return
+
+        task_idx = widgets.BoundedIntText(
+            description="Task #:",
+            min=0,
+            max=max(0, len(self.planner.tasks)-1),
+            value=0
+        )
+
+        submit_btn = widgets.Button(description="Mark Complete", button_style="warning")
+        back_btn = widgets.Button(description="Back", button_style="")
+
+        # Display current tasks for reference
+        output = widgets.Output()
+        with output:
+            tasks_display = self.planner.view_tasks()
+            if isinstance(tasks_display, str):
+                print(tasks_display)
+            else:
+                display(tasks_display)
+
+        def on_submit(b):
+            result = self.planner.mark_task_complete(task_idx.value)
+            clear_output(wait=True)
+            print(result)
+            back_button = widgets.Button(description="Back to Menu", button_style="")
+            back_button.on_click(lambda b: self.display_main_menu())
+            display(back_button)
+
+        submit_btn.on_click(on_submit)
+        back_btn.on_click(lambda b: self.display_main_menu())
+
+        display(widgets.HTML("<b>Current Tasks (use Task # column for reference):</b>"))
+        display(output)
+        display(task_idx, widgets.HBox([submit_btn, back_btn]))
+
+    def show_delete_task(self):
+        """Display interface for deleting tasks"""
+        clear_output(wait=True)
+        print("🗑️ Delete Task")
+
+        # Check if there are any tasks
+        if len(self.planner.tasks) == 0:
+            print("No tasks found to delete.")
+            back_btn = widgets.Button(description="Back to Menu", button_style="")
+            back_btn.on_click(lambda b: self.display_main_menu())
+            display(back_btn)
+            return
+
+        task_idx = widgets.BoundedIntText(
+            description="Task #:",
+            min=0,
+            max=max(0, len(self.planner.tasks)-1),
+            value=0
+        )
+
+        submit_btn = widgets.Button(description="Delete Task", button_style="danger")
+        back_btn = widgets.Button(description="Back", button_style="")
+
+        # Display current tasks for reference
+        output = widgets.Output()
+        with output:
+            tasks_display = self.planner.view_tasks()
+            if isinstance(tasks_display, str):
+                print(tasks_display)
+            else:
+                display(tasks_display)
+
+        def on_submit(b):
+            result = self.planner.delete_task(task_idx.value)
+            clear_output(wait=True)
+            print(result)
+            back_button = widgets.Button(description="Back to Menu", button_style="")
+            back_button.on_click(lambda b: self.display_main_menu())
+            display(back_button)
+
+        submit_btn.on_click(on_submit)
+        back_btn.on_click(lambda b: self.display_main_menu())
+
+        display(widgets.HTML("<b>Current Tasks (use Task # column for reference):</b>"))
+        display(output)
+        display(task_idx, widgets.HBox([submit_btn, back_btn]))
+
+
+# Start the planner application
+def run_planner_app():
+    ui = PlannerUI()
+    ui.display_main_menu()
+
+# Run this single line to start the app
+run_planner_app()
