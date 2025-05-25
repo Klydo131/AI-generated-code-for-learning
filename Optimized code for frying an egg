@@ -1,0 +1,65 @@
+import time
+
+class EggFryer:
+    def __init__(self):
+        self.pan_temp = 20  # Initial pan temperature in Celsius
+        self.egg_cooked = False
+        self.target_temp = 160  # Optimal frying temp for eggs
+        self.cook_time = 120  # Seconds for one side (2 minutes)
+
+    def preheat_pan(self):
+        print("Preheating pan...")
+        while self.pan_temp < self.target_temp:
+            self.pan_temp += 20  # Simulate heating (20°C per second)
+            time.sleep(1)  # Simulate time taken to heat
+            print(f"Pan temperature: {self.pan_temp}°C")
+        print("Pan is ready!")
+
+    def add_oil(self):
+        print("Adding 1 tsp of oil to the pan...")
+        time.sleep(1)  # Simulate time to add oil
+        print("Oil added and heated.")
+
+    def crack_egg(self):
+        print("Cracking egg into the pan...")
+        time.sleep(1)  # Simulate cracking egg
+        print("Egg is in the pan.")
+
+    def cook_egg(self, side=1):
+        print(f"Cooking egg (Side {side}) for {self.cook_time} seconds...")
+        for i in range(self.cook_time, 0, -10):
+            print(f"Time remaining: {i} seconds")
+            time.sleep(1)  # Simulate cooking time
+        print(f"Side {side} cooked.")
+
+    def flip_egg(self):
+        print("Flipping egg...")
+        time.sleep(1)  # Simulate flipping
+        print("Egg flipped.")
+
+    def check_doneness(self):
+        print("Checking doneness...")
+        time.sleep(1)  # Simulate checking
+        self.egg_cooked = True
+        print("Egg is perfectly fried!")
+
+    def fry_egg(self, style="sunny_side_up"):
+        print("Starting egg frying process...")
+        self.preheat_pan()
+        self.add_oil()
+        self.crack_egg()
+        self.cook_egg()
+        if style == "over_easy":
+            self.flip_egg()
+            self.cook_egg(side=2)
+        self.check_doneness()
+        print("Egg frying complete! Enjoy your meal.")
+
+# Run the system
+if _name_ == "_main_":
+    fryer = EggFryer()
+    style = input("Enter egg style (sunny_side_up or over_easy): ").lower()
+    if style not in ["sunny_side_up", "over_easy"]:
+        print("Invalid style. Defaulting to sunny_side_up.")
+        style = "sunny_side_up"
+    fryer.fry_egg(style=style)
