@@ -1,0 +1,171 @@
+import time
+import random
+
+class EggFryer:
+    def __init__(self):
+        self.pan_temp = 20  # Initial pan temperature in Celsius
+        self.egg_cooked = False
+        self.target_temp = 160  # Optimal frying temp for eggs
+        self.cook_time = 12  # Reduced to 12 seconds for demo (represents 2 minutes)
+        self.has_oil = False
+        self.egg_in_pan = False
+
+    def preheat_pan(self):
+        print("🔥 Preheating pan...")
+        while self.pan_temp < self.target_temp:
+            # Add some randomness to heating rate
+            heat_increment = random.randint(15, 25)
+            self.pan_temp = min(self.pan_temp + heat_increment, self.target_temp)
+            time.sleep(0.5)  # Faster simulation
+            print(f"   Pan temperature: {self.pan_temp}°C")
+        print("✅ Pan is ready!")
+
+    def add_oil(self):
+        if self.has_oil:
+            print("⚠️  Oil already added!")
+            return
+        print("🛢️  Adding 1 tsp of oil to the pan...")
+        time.sleep(0.5)
+        self.has_oil = True
+        print("✅ Oil added and heated.")
+
+    def crack_egg(self):
+        if not self.has_oil:
+            print("⚠️  Warning: Adding egg without oil first!")
+        if self.egg_in_pan:
+            print("⚠️  Egg already in pan!")
+            return
+        print("🥚 Cracking egg into the pan...")
+        time.sleep(0.5)
+        self.egg_in_pan = True
+        print("✅ Egg is sizzling in the pan.")
+
+    def cook_egg(self, side=1):
+        if not self.egg_in_pan:
+            print("❌ No egg to cook!")
+            return
+        
+        print(f"🍳 Cooking egg (Side {side}) for {self.cook_time} seconds...")
+        for i in range(self.cook_time, 0, -2):
+            # Add cooking progress indicators
+            if i <= 4:
+                progress = "🔥🔥🔥 Almost done!"
+            elif i <= 8:
+                progress = "🔥🔥 Getting there..."
+            else:
+                progress = "🔥 Just started..."
+            
+            print(f"   Time remaining: {i} seconds - {progress}")
+            time.sleep(0.5)
+        print(f"✅ Side {side} cooked perfectly.")
+
+    def flip_egg(self):
+        if not self.egg_in_pan:
+            print("❌ No egg to flip!")
+            return
+        print("🔄 Flipping egg...")
+        # Add some drama to flipping
+        flip_success = random.choice([True, True, True, False])  # 75% success rate
+        time.sleep(1)
+        if flip_success:
+            print("✅ Perfect flip! Egg landed safely.")
+        else:
+            print("😅 Slightly messy flip, but egg is still intact!")
+
+    def check_doneness(self):
+        if not self.egg_in_pan:
+            print("❌ No egg to check!")
+            return
+        print("👀 Checking doneness...")
+        time.sleep(0.5)
+        self.egg_cooked = True
+        doneness_comments = [
+            "Egg is perfectly golden!",
+            "Beautiful crispy edges!",
+            "Yolk looks just right!",
+            "Professional-level frying!"
+        ]
+        print(f"✅ {random.choice(doneness_comments)}")
+
+    def fry_egg(self, style="sunny_side_up"):
+        print("=" * 50)
+        print(f"🍳 Starting {style.replace('_', ' ').title()} egg frying process...")
+        print("=" * 50)
+        
+        try:
+            self.preheat_pan()
+            self.add_oil()
+            self.crack_egg()
+            self.cook_egg(side=1)
+            
+            if style == "over_easy":
+                self.flip_egg()
+                # Cook second side for less time
+                original_cook_time = self.cook_time
+                self.cook_time = max(6, self.cook_time // 2)  # Half the time for second side
+                self.cook_egg(side=2)
+                self.cook_time = original_cook_time  # Reset for next use
+            
+            self.check_doneness()
+            print("=" * 50)
+            print("🎉 Egg frying complete! Enjoy your delicious meal! 🍽️")
+            print("=" * 50)
+            
+        except KeyboardInterrupt:
+            print("\n🛑 Cooking interrupted! Don't forget to turn off the stove!")
+        except Exception as e:
+            print(f"❌ Something went wrong: {e}")
+
+    def reset(self):
+        """Reset the fryer for another egg"""
+        self.__init__()
+        print("🔄 Fryer reset. Ready for another egg!")
+
+def get_valid_style():
+    """Get valid egg style from user with better error handling"""
+    valid_styles = ["sunny_side_up", "over_easy"]
+    
+    while True:
+        print("\n🍳 Available egg styles:")
+        print("   1. sunny_side_up (runny yolk, cooked white)")
+        print("   2. over_easy (flipped, runny yolk)")
+        
+        style = input("\nEnter egg style (or 'quit' to exit): ").lower().strip()
+        
+        if style == 'quit':
+            return None
+        elif style in valid_styles:
+            return style
+        elif style in ['1', 'sunny', 'sunny_side']:
+            return "sunny_side_up"
+        elif style in ['2', 'over', 'easy']:
+            return "over_easy"
+        else:
+            print("❌ Invalid style. Please try again.")
+
+def main():
+    """Main function to run the egg fryer simulator"""
+    print("🍳 Welcome to the Advanced Egg Fryer Simulator! 🍳")
+    
+    fryer = EggFryer()
+    
+    while True:
+        style = get_valid_style()
+        
+        if style is None:  # User chose to quit
+            print("👋 Thanks for using the Egg Fryer Simulator!")
+            break
+            
+        fryer.fry_egg(style=style)
+        
+        # Ask if user wants to cook another egg
+        another = input("\n🤔 Would you like to cook another egg? (y/n): ").lower().strip()
+        if another in ['y', 'yes']:
+            fryer.reset()
+        else:
+            print("👋 Thanks for using the Egg Fryer Simulator!")
+            break
+
+# Fixed the main execution check
+if __name__ == "__main__":
+    main()
