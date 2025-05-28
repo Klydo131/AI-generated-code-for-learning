@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cebu Living Budget Calculator</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .spreadsheet-container {
+            padding: 30px;
+        }
+        
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        
+        .card h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .card .amount {
+            font-size: 2em;
+            font-weight: bold;
+            margin: 0;
+        }
+        
+        .balance-positive {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .balance-negative {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        th {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .editable {
+            background: none;
+            border: 1px solid #ddd;
+            padding: 8px;
+            border-radius: 5px;
+            width: 100px;
+            text-align: right;
+        }
+        
+        .editable:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 5px rgba(102, 126, 234, 0.3);
+        }
+        
+        .category-header {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            font-weight: bold;
+        }
+        
+        .subcategory {
+            padding-left: 30px;
+            font-style: italic;
+            color: #666;
+        }
+        
+        .total-row {
+            font-weight: bold;
+            background: #f8f9fa;
+            border-top: 2px solid #2c3e50;
+        }
+        
+        .positive {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        
+        .negative {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        
+        .tips {
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 30px;
+        }
+        
+        .tips h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        
+        .tips ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        
+        .tips li {
+            margin-bottom: 8px;
+            color: #2c3e50;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+            }
+            
+            .header {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .spreadsheet-container {
+                padding: 15px;
+            }
+            
+            table {
+                font-size: 14px;
+            }
+            
+            th, td {
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Cebu Living Budget Calculator</h1>
+            <p>Monthly Budget: ₱30,000 | 1-Year Survival Plan</p>
+        </div>
+        
+        <div class="spreadsheet-container">
+            <div class="summary-cards">
+                <div class="card">
+                    <h3>Monthly Income</h3>
+                    <p class="amount">₱30,000</p>
+                </div>
+                <div class="card">
+                    <h3>Total Expenses</h3>
+                    <p class="amount" id="totalExpenses">₱26,000</p>
+                </div>
+                <div class="card balance-positive" id="balanceCard">
+                    <h3>Monthly Balance</h3>
+                    <p class="amount" id="monthlyBalance">₱4,000</p>
+                </div>
+                <div class="card">
+                    <h3>Annual Savings</h3>
+                    <p class="amount" id="annualSavings">₱48,000</p>
+                </div>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th>Description</th>
+                        <th>Min Amount (PHP)</th>
+                        <th>Max Amount (PHP)</th>
+                        <th>Your Budget (PHP)</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="category-header">
+                        <td colspan="6">🏠 HOUSING</td>
+                    </tr>
+                    <tr>
+                        <td class="subcategory">Rent</td>
+                        <td>Shared apartment/boarding house</td>
+                        <td>8,000</td>
+                        <td>12,000</td>
+                        <td><input type="number" class="editable" value="10000" data-category="housing"></td>
+                        <td>Lahug, Banilad, IT Park area</td>
+                    </tr>
+                    
+                    <tr class="category-header">
+                        <td colspan="6">🍽️ FOOD</td>
+                    </tr>
+                    <tr>
+                        <td class="subcategory">Groceries</td>
+                        <td>Home cooking ingredients</td>
+                        <td>5,000</td>
+                        <td>6,000</td>
+                        <td><input type="number" class="editable" value="5500" data-category="food"></td>
+                        <td>Local markets cheaper than malls</td>
+                    </tr>
+                    <tr>
+                        <td class="subcategory">Eating Out</td>
+                        <td>Carinderias & occasional restaurants</td>
+                        <td>2,500</td>
+                        <td>4,000</td>
+                        <td><input type="number" class="editable" value="3000" data-category="food"></td>
+                        <td>₱50-80 per carinderia meal</td>
+                    </tr>
+                    
+                    <tr class="category-header">
+                        <td colspan="6">🚗 TRANSPORTATION</td>
+                    </tr>
+                    <tr>
+                        <td class="subcategory">Public Transport</td>
+                        <td>Jeepneys, habal-habal</td>
+                        <td>1,500</td>
+                        <td>2,000</td>
+                        <td><input type="number" class="editable" value="1800" data-category="transport"></td>
+                        <td>₱15-20 per ride</td>
+                    </tr>
+                    <tr>
+                        <td class="subcategory">Grab/Taxi</td>
+                        <td>Occasional longer trips</td>
+                        <td>500</td>
+                        <td>1,000</td>
+                        <td><input type="number" class="editable" value="700" data-category="transport"></td>
+                        <td>Emergency/convenience</td>
+                    </tr>
+                    
+                    <tr class="category-header">
+                        <td colspan="6">⚡ UTILITIES</td>
+                    </tr>
+                    <tr>
+                        <td class="subcategory">Electricity</td>
+                        <td>Monthly electric bill</td>
+                        <td>1,500</td>
+                        <td>2,500</td>
+                        <td><input type="number" class="editable" value="2000" data-category="utilities"></td>
+                        <td>Depends on AC usage</td>
+                    </tr>
+                    <tr>
+                        <td class="subcategory">Internet</td>
+                        <td>WiFi connection</td>
+                        <td>1,000</td>
+                        <td>1,500</td>
+                        <td><input type="number" class="editable" value="1200" data-category="utilities"></td>
+                        <td>Shared connection cheaper</td>
+                    </tr>
+                    <tr>
+                        <td class="subcategory">Water</td>
+                        <td>Monthly water bill</td>
+                        <td>200</td>
+                        <td>500</td>
+                        <td><input type="number" class="editable" value="300" data-category="utilities"></td>
+                        <td>Often included in rent</td>
+                    </tr>
+                    <tr>
+                        <td class="subcategory">Mobile</td>
+                        <td>Load/data plan</td>
+                        <td>300</td>
+                        <td>500</td>
+                        <td><input type="number" class="editable" value="400" data-category="utilities"></td>
+                        <td>Prepaid recommended</td>
+                    </tr>
+                    
+                    <tr class="category-header">
+                        <td colspan="6">🧴 PERSONAL CARE</td>
+                    </tr>
+                    <tr>
+                        <td class="subcategory">Toiletries</td>
+                        <td>Shampoo, soap, toothpaste, etc.</td>
+                        <td>800</td>
+                        <td>1,200</td>
+                        <td><input type="number" class="editable" value="1000" data-category="personal"></td>
+                        <td>Buy in bulk to save</td>
+                    </tr>
+                    <tr>
+                        <td class="subcategory">Laundry</td>
+                        <td>Laundry services</td>
+                        <td>500</td>
+                        <td>800</td>
+                        <td><input type="number" class="editable" value="600" data-category="personal"></td>
+                        <td>₱25-30 per kilo</td>
+                    </tr>
+                    
+                    <tr class="category-header">
+                        <td colspan="6">🎯 MISCELLANEOUS</td>
+                    </tr>
+                    <tr>
+                        <td class="subcategory">Emergency Fund</td>
+                        <td>Unexpected expenses</td>
+                        <td>1,000</td>
+                        <td>2,000</td>
+                        <td><input type="number" class="editable" value="1500" data-category="misc"></td>
+                        <td>Medical, repairs, etc.</td>
+                    </tr>
+                    <tr>
+                        <td class="subcategory">Entertainment</td>
+                        <td>Movies, dining, social</td>
+                        <td>1,000</td>
+                        <td>2,000</td>
+                        <td><input type="number" class="editable" value="1200" data-category="misc"></td>
+                        <td>Budget for mental health</td>
+                    </tr>
+                    
+                    <tr class="total-row">
+                        <td colspan="4"><strong>TOTAL MONTHLY EXPENSES</strong></td>
+                        <td><strong id="totalBudget">₱26,000</strong></td>
+                        <td></td>
+                    </tr>
+                    <tr class="total-row">
+                        <td colspan="4"><strong>MONTHLY BALANCE</strong></td>
+                        <td><strong id="balance" class="positive">₱4,000</strong></td>
+                        <td></td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <div class="tips">
+                <h3>💡 Money-Saving Tips for Cebu</h3>
+                <ul>
+                    <li><strong>Housing:</strong> Consider shared accommodations in Talisay or Mandaue for lower rent</li>
+                    <li><strong>Food:</strong> Shop at Carbon Market for fresh produce at local prices</li>
+                    <li><strong>Transport:</strong> Learn jeepney routes - much cheaper than Grab</li>
+                    <li><strong>Utilities:</strong> Use fans instead of AC when possible, share internet with housemates</li>
+                    <li><strong>Entertainment:</strong> Enjoy free beaches, hiking spots, and local festivals</li>
+                    <li><strong>Shopping:</strong> Buy from local vendors and wet markets rather than malls</li>
+                    <li><strong>Social:</strong> Join expat Facebook groups for tips and second-hand items</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function calculateTotal() {
+            const inputs = document.querySelectorAll('.editable');
+            let total = 0;
+            
+            inputs.forEach(input => {
+                total += parseFloat(input.value) || 0;
+            });
+            
+            const balance = 30000 - total;
+            const annualSavings = balance * 12;
+            
+            document.getElementById('totalExpenses').textContent = '₱' + total.toLocaleString();
+            document.getElementById('totalBudget').textContent = '₱' + total.toLocaleString();
+            document.getElementById('monthlyBalance').textContent = '₱' + balance.toLocaleString();
+            document.getElementById('balance').textContent = '₱' + balance.toLocaleString();
+            document.getElementById('annualSavings').textContent = '₱' + annualSavings.toLocaleString();
+            
+            // Update balance styling
+            const balanceElement = document.getElementById('balance');
+            const balanceCard = document.getElementById('balanceCard');
+            
+            if (balance >= 0) {
+                balanceElement.className = 'positive';
+                balanceCard.className = 'card balance-positive';
+            } else {
+                balanceElement.className = 'negative';
+                balanceCard.className = 'card balance-negative';
+            }
+        }
+        
+        // Add event listeners to all editable inputs
+        document.querySelectorAll('.editable').forEach(input => {
+            input.addEventListener('input', calculateTotal);
+        });
+        
+        // Initial calculation
+        calculateTotal();
+    </script>
+</body>
+</html>
