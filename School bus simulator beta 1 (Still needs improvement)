@@ -1,0 +1,325 @@
+import datetime
+import pandas as pd
+from IPython.display import display, clear_output
+import ipywidgets as widgets
+from ipywidgets import interact, interactive, fixed, interact_manual
+import warnings
+warnings.filterwarnings('ignore')
+
+class SchoolBusService:
+    def __init__(self):
+        """
+        Initialize the School Bus Service Management System
+        """
+        # Store bus service records
+        self.records = []
+        
+        # Default bus routes and student capacity
+        self.bus_routes = {
+            'Route A - Downtown': {'capacity': 50, 'driver': 'John Smith'},
+            'Route B - Suburbs': {'capacity': 45, 'driver': 'Maria Garcia'},
+            'Route C - North District': {'capacity': 40, 'driver': 'Robert Johnson'},
+            'Route D - East Side': {'capacity': 35, 'driver': 'Lisa Chen'}
+        }
+        
+        print("🚌 School Bus Service Management System Initialized!")
+        print("=" * 50)
+    
+    def add_bus_record(self, date, route, service_type, students_count, departure_time, arrival_time, notes=""):
+        """
+        Add a new bus service record
+        
+        Parameters:
+        - date: Date of service (YYYY-MM-DD format)
+        - route: Bus route name
+        - service_type: 'To School' or 'From School'
+        - students_count: Number of students transported
+        - departure_time: Time bus departed (HH:MM format)
+        - arrival_time: Time bus arrived (HH:MM format)
+        - notes: Additional notes (optional)
+        """
+        try:
+            # Validate date format
+            datetime.datetime.strptime(date, '%Y-%m-%d')
+            
+            # Validate time format
+            datetime.datetime.strptime(departure_time, '%H:%M')
+            datetime.datetime.strptime(arrival_time, '%H:%M')
+            
+            # Create record
+            record = {
+                'Date': date,
+                'Route': route,
+                'Service Type': service_type,
+                'Students Count': int(students_count),
+                'Departure Time': departure_time,
+                'Arrival Time': arrival_time,
+                'Driver': self.bus_routes.get(route, {}).get('driver', 'Unknown'),
+                'Bus Capacity': self.bus_routes.get(route, {}).get('capacity', 'Unknown'),
+                'Notes': notes,
+                'Record ID': len(self.records) + 1
+            }
+            
+            self.records.append(record)
+            return True, f"✅ Record added successfully! (ID: {record['Record ID']})"
+            
+        except ValueError as e:
+            return False, f"❌ Error: Invalid date or time format. Please use YYYY-MM-DD for date and HH:MM for time."
+        except Exception as e:
+            return False, f"❌ Error adding record: {str(e)}"
+    
+    def view_records(self, filter_date=None, filter_route=None):
+        """
+        View bus service records with optional filtering
+        """
+        if not self.records:
+            print("📋 No records found. Please add some bus service records first.")
+            return
+        
+        # Convert to DataFrame for better display
+        df = pd.DataFrame(self.records)
+        
+        # Apply filters if provided
+        if filter_date:
+            df = df[df['Date'] == filter_date]
+        
+        if filter_route and filter_route != 'All Routes':
+            df = df[df['Route'] == filter_route]
+        
+        if df.empty:
+            print("📋 No records match the selected filters.")
+            return
+        
+        print(f"📊 Bus Service Records ({len(df)} entries)")
+        print("=" * 80)
+        display(df[['Date', 'Route', 'Service Type', 'Students Count', 'Departure Time', 'Arrival Time', 'Driver']])
+    
+    def get_statistics(self):
+        """
+        Generate statistics about the bus service
+        """
+        if not self.records:
+            print("📈 No data available for statistics.")
+            return
+        
+        df = pd.DataFrame(self.records)
+        
+        print("📈 BUS SERVICE STATISTICS")
+        print("=" * 40)
+        print(f"Total Records: {len(df)}")
+        print(f"Total Students Transported: {df['Students Count'].sum()}")
+        print(f"Average Students per Trip: {df['Students Count'].mean():.1f}")
+        print(f"Most Active Route: {df['Route'].mode().iloc[0] if not df['Route'].mode().empty else 'N/A'}")
+        print(f"Date Range: {df['Date'].min()} to {df['Date'].max()}")
+        
+        print("\n📊 Students by Route:")
+        route_stats = df.groupby('Route')['Students Count'].agg(['count', 'sum', 'mean']).round(1)
+        route_stats.columns = ['Trips', 'Total Students', 'Avg Students']
+        display(route_stats)
+    
+    def delete_record(self, record_id):
+        """
+        Delete a record by ID
+        """
+        try:
+            record_id = int(record_id)
+            for i, record in enumerate(self.records):
+                if record['Record ID'] == record_id:
+                    deleted_record = self.records.pop(i)
+                    return True, f"✅ Record {record_id} deleted successfully!"
+            
+            return False, f"❌ Record with ID {record_id} not found."
+        
+        except ValueError:
+            return False, "❌ Please enter a valid record ID number."
+    
+    def export_to_csv(self, filename=None):
+        """
+        Export records to CSV file
+        """
+        if not self.records:
+            return False, "❌ No records to export."
+        
+        if not filename:
+            filename = f"bus_service_records_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        
+        try:
+            df = pd.DataFrame(self.records)
+            df.to_csv(filename, index=False)
+            return True, f"✅ Records exported to: {filename}"
+        except Exception as e:
+            return False, f"❌ Export failed: {str(e)}"
+
+# Initialize the system
+bus_system = SchoolBusService()
+
+# Create interactive widgets for the user interface
+def create_user_interface():
+    """
+    Create an interactive user interface using ipywidgets
+    """
+    
+    # Widgets for adding records
+    date_widget = widgets.DatePicker(
+        description='Date:',
+        value=datetime.date.today(),
+        style={'description_width': 'initial'}
+    )
+    
+    route_widget = widgets.Dropdown(
+        options=list(bus_system.bus_routes.keys()),
+        description='Bus Route:',
+        style={'description_width': 'initial'}
+    )
+    
+    service_type_widget = widgets.Dropdown(
+        options=['To School', 'From School'],
+        description='Service Type:',
+        style={'description_width': 'initial'}
+    )
+    
+    students_widget = widgets.IntSlider(
+        value=25,
+        min=1,
+        max=60,
+        description='Students:',
+        style={'description_width': 'initial'}
+    )
+    
+    departure_time_widget = widgets.Text(
+        value='07:30',
+        description='Departure Time:',
+        placeholder='HH:MM (e.g. 07:30)',
+        style={'description_width': 'initial'}
+    )
+    
+    arrival_time_widget = widgets.Text(
+        value='08:00',
+        description='Arrival Time:',
+        placeholder='HH:MM (e.g. 08:00)',
+        style={'description_width': 'initial'}
+    )
+    
+    notes_widget = widgets.Textarea(
+        value='',
+        description='Notes:',
+        placeholder='Optional notes...',
+        style={'description_width': 'initial'}
+    )
+    
+    # Button to add record
+    add_button = widgets.Button(
+        description='Add Bus Record',
+        button_style='success',
+        icon='plus'
+    )
+    
+    # Output widget for messages
+    output = widgets.Output()
+    
+    def on_add_button_clicked(b):
+        with output:
+            clear_output()
+            success, message = bus_system.add_bus_record(
+                date=str(date_widget.value),
+                route=route_widget.value,
+                service_type=service_type_widget.value,
+                students_count=students_widget.value,
+                departure_time=departure_time_widget.value,
+                arrival_time=arrival_time_widget.value,
+                notes=notes_widget.value
+            )
+            print(message)
+    
+    add_button.on_click(on_add_button_clicked)
+    
+    # Create interface for viewing records
+    filter_date_widget = widgets.DatePicker(
+        description='Filter by Date:',
+        value=None,
+        style={'description_width': 'initial'}
+    )
+    
+    filter_route_widget = widgets.Dropdown(
+        options=['All Routes'] + list(bus_system.bus_routes.keys()),
+        value='All Routes',
+        description='Filter by Route:',
+        style={'description_width': 'initial'}
+    )
+    
+    view_button = widgets.Button(
+        description='View Records',
+        button_style='info',
+        icon='table'
+    )
+    
+    stats_button = widgets.Button(
+        description='Show Statistics',
+        button_style='warning',
+        icon='bar-chart'
+    )
+    
+    export_button = widgets.Button(
+        description='Export to CSV',
+        button_style='primary',
+        icon='download'
+    )
+    
+    view_output = widgets.Output()
+    
+    def on_view_button_clicked(b):
+        with view_output:
+            clear_output()
+            filter_date = str(filter_date_widget.value) if filter_date_widget.value else None
+            bus_system.view_records(filter_date=filter_date, filter_route=filter_route_widget.value)
+    
+    def on_stats_button_clicked(b):
+        with view_output:
+            clear_output()
+            bus_system.get_statistics()
+    
+    def on_export_button_clicked(b):
+        with view_output:
+            clear_output()
+            success, message = bus_system.export_to_csv()
+            print(message)
+    
+    view_button.on_click(on_view_button_clicked)
+    stats_button.on_click(on_stats_button_clicked)
+    export_button.on_click(on_export_button_clicked)
+    
+    # Layout the interface
+    print("🚌 SCHOOL BUS SERVICE MANAGEMENT SYSTEM")
+    print("=" * 50)
+    
+    # Add Record Section
+    add_section = widgets.VBox([
+        widgets.HTML("<h3>📝 Add New Bus Service Record</h3>"),
+        widgets.HBox([date_widget, route_widget]),
+        widgets.HBox([service_type_widget, students_widget]),
+        widgets.HBox([departure_time_widget, arrival_time_widget]),
+        notes_widget,
+        add_button,
+        output
+    ])
+    
+    # View Records Section
+    view_section = widgets.VBox([
+        widgets.HTML("<h3>📊 View and Manage Records</h3>"),
+        widgets.HBox([filter_date_widget, filter_route_widget]),
+        widgets.HBox([view_button, stats_button, export_button]),
+        view_output
+    ])
+    
+    # Display the complete interface
+    display(widgets.VBox([add_section, widgets.HTML("<hr>"), view_section]))
+
+# Display route information
+print("🗺️  AVAILABLE BUS ROUTES:")
+for route, info in bus_system.bus_routes.items():
+    print(f"• {route} - Capacity: {info['capacity']} students, Driver: {info['driver']}")
+
+print("\n" + "="*50)
+
+# Create and display the user interface
+create_user_interface()
