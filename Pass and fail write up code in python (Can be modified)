@@ -1,0 +1,150 @@
+# Student Pass/Fail Automation
+# A program that automatically determines if students pass or fail based on exam scores
+# Passing score: 85%
+
+import pandas as pd
+
+def determine_pass_fail(score, passing_score=85):
+    """
+    Determine if a student passes or fails based on their exam score
+    
+    Args:
+        score (int/float): Student's exam score
+        passing_score (int/float): Minimum score required to pass (default: 85)
+    
+    Returns:
+        str: "Passed" if score >= passing_score, "Failed" otherwise
+    """
+    if score >= passing_score:
+        return "Passed"
+    else:
+        return "Failed"
+
+def process_student_data(students_data, passing_score=85):
+    """
+    Process a list of student data and determine pass/fail status
+    
+    Args:
+        students_data (list): List of dictionaries containing student info
+        passing_score (int/float): Minimum score required to pass
+    
+    Returns:
+        pandas.DataFrame: DataFrame with pass/fail results
+    """
+    # Create DataFrame from student data
+    df = pd.DataFrame(students_data)
+    
+    # Apply pass/fail logic using IF statement equivalent
+    df['Remark'] = df['Exam Score'].apply(lambda score: determine_pass_fail(score, passing_score))
+    
+    return df
+
+# Sample student data (based on the image)
+students_data = [
+    {"Student ID": 1001, "Name": "Serrano, Ernesto", "Exam Score": 80},
+    {"Student ID": 1002, "Name": "Bartolome, Caterina", "Exam Score": 67},
+    {"Student ID": 1003, "Name": "Catalan, Venancio", "Exam Score": 81},
+    {"Student ID": 1004, "Name": "Rojo, Abel", "Exam Score": 92},
+    {"Student ID": 1005, "Name": "Amil, Charito", "Exam Score": 94}
+]
+
+# Process the student data
+print("=== STUDENT PASS/FAIL AUTOMATION ===")
+print(f"Passing Score: 85%\n")
+
+# Method 1: Using the function
+results_df = process_student_data(students_data, passing_score=85)
+print("Results using automated function:")
+print(results_df.to_string(index=False))
+
+print("\n" + "="*50)
+
+# Method 2: Direct IF statement approach (more explicit)
+print("\nDirect IF Statement Results:")
+print(f"{'Student ID':<12} {'Name':<20} {'Score':<8} {'Remark':<8}")
+print("-" * 50)
+
+for student in students_data:
+    student_id = student["Student ID"]
+    name = student["Name"]
+    score = student["Exam Score"]
+    
+    # IF Statement Logic
+    if score >= 85:
+        remark = "Passed"
+    else:
+        remark = "Failed"
+    
+    print(f"{student_id:<12} {name:<20} {score:<8} {remark:<8}")
+
+print("\n" + "="*50)
+
+# Method 3: Batch processing with statistics
+def generate_class_report(students_data, passing_score=85):
+    """Generate a comprehensive class report"""
+    df = process_student_data(students_data, passing_score)
+    
+    total_students = len(df)
+    passed_students = len(df[df['Remark'] == 'Passed'])
+    failed_students = len(df[df['Remark'] == 'Failed'])
+    pass_rate = (passed_students / total_students) * 100
+    
+    average_score = df['Exam Score'].mean()
+    highest_score = df['Exam Score'].max()
+    lowest_score = df['Exam Score'].min()
+    
+    print("\n=== CLASS PERFORMANCE REPORT ===")
+    print(f"Total Students: {total_students}")
+    print(f"Students Passed: {passed_students}")
+    print(f"Students Failed: {failed_students}")
+    print(f"Pass Rate: {pass_rate:.1f}%")
+    print(f"Average Score: {average_score:.1f}")
+    print(f"Highest Score: {highest_score}")
+    print(f"Lowest Score: {lowest_score}")
+    
+    return df
+
+# Generate comprehensive report
+final_results = generate_class_report(students_data)
+
+print("\n" + "="*50)
+print("\n=== ADDING NEW STUDENTS ===")
+
+# Function to add new student and immediately determine pass/fail
+def add_student_and_evaluate(student_id, name, score, passing_score=85):
+    """Add a new student and immediately determine their pass/fail status"""
+    remark = determine_pass_fail(score, passing_score)
+    
+    print(f"Student Added: {name} (ID: {student_id})")
+    print(f"Exam Score: {score}")
+    print(f"Result: {remark}")
+    
+    return {
+        "Student ID": student_id,
+        "Name": name,
+        "Exam Score": score,
+        "Remark": remark
+    }
+
+# Example of adding new students
+new_student1 = add_student_and_evaluate(1006, "Cruz, Maria", 88)
+print()
+new_student2 = add_student_and_evaluate(1007, "Santos, Juan", 75)
+
+print("\n" + "="*50)
+print("\n=== USAGE INSTRUCTIONS FOR GOOGLE COLAB ===")
+print("""
+To use this program in Google Colab:
+
+1. Copy and paste this entire code into a Colab cell
+2. Run the cell to see the automated pass/fail results
+3. Modify the 'students_data' list to add your own student information
+4. Change the 'passing_score' parameter if needed (default is 85)
+5. Use the functions to process new batches of students
+
+Key Functions:
+- determine_pass_fail(score, passing_score): Basic pass/fail logic
+- process_student_data(students_data): Process entire class
+- add_student_and_evaluate(): Add and evaluate single student
+- generate_class_report(): Generate comprehensive statistics
+""")
