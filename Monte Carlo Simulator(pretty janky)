@@ -1,0 +1,169 @@
+ import numpy as np
+import matplotlib.pyplot as plt
+from IPython.display import clear_output
+import time
+
+class MonteCarloSimulator:
+    def __init__(self):
+        self.total_points = 0
+        self.points_in_circle = 0
+        self.x_coords = []
+        self.y_coords = []
+        self.colors = []
+        
+    def reset(self):
+        """Reset the simulation"""
+        self.total_points = 0
+        self.points_in_circle = 0
+        self.x_coords = []
+        self.y_coords = []
+        self.colors = []
+        
+    def run_batch(self, num_points):
+        """Run a batch of Monte Carlo simulations"""
+        # Generate random points in the square [-1, 1] x [-1, 1]
+        x = np.random.uniform(-1, 1, num_points)
+        y = np.random.uniform(-1, 1, num_points)
+        
+        # Check which points are inside the unit circle
+        distances = x**2 + y**2
+        inside_circle = distances <= 1
+        
+        # Update counters
+        self.total_points += num_points
+        self.points_in_circle += np.sum(inside_circle)
+        
+        # Store coordinates for plotting (limit to last 2000 points for performance)
+        self.x_coords.extend(x)
+        self.y_coords.extend(y)
+        self.colors.extend(['red' if inside else 'blue' for inside in inside_circle])
+        
+        # Keep only last 2000 points for visualization
+        if len(self.x_coords) > 2000:
+            self.x_coords = self.x_coords[-2000:]
+            self.y_coords = self.y_coords[-2000:]
+            self.colors = self.colors[-2000:]
+    
+    def estimate_pi(self):
+        """Estimate π using the Monte Carlo method"""
+        if self.total_points == 0:
+            return 0
+        return 4 * self.points_in_circle / self.total_points
+    
+    def plot_results(self):
+        """Plot the current state of the simulation"""
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+        
+        # Plot 1: Scatter plot of points
+        if self.x_coords:
+            ax1.scatter(self.x_coords, self.y_coords, c=self.colors, alpha=0.6, s=1)
+        
+        # Draw the unit circle
+        theta = np.linspace(0, 2*np.pi, 100)
+        circle_x = np.cos(theta)
+        circle_y = np.sin(theta)
+        ax1.plot(circle_x, circle_y, 'black', linewidth=2)
+        
+        # Draw the square boundary
+        ax1.plot([-1, 1, 1, -1, -1], [-1, -1, 1, 1, -1], 'black', linewidth=2)
+        
+        ax1.set_xlim(-1.1, 1.1)
+        ax1.set_ylim(-1.1, 1.1)
+        ax1.set_aspect('equal')
+        ax1.set_title(f'Monte Carlo Simulation\n(Showing last {min(len(self.x_coords), 2000)} points)')
+        ax1.grid(True, alpha=0.3)
+        
+        # Plot 2: Pi estimation progress
+        pi_estimate = self.estimate_pi()
+        actual_pi = np.pi
+        error = abs(pi_estimate - actual_pi)
+        
+        ax2.bar(['Estimated π', 'Actual π'], [pi_estimate, actual_pi], 
+                color=['orange', 'green'], alpha=0.7)
+        ax2.set_ylabel('Value')
+        ax2.set_title(f'π Estimation Results\nTotal Points: {self.total_points:,}')
+        ax2.grid(True, alpha=0.3)
+        
+        # Add text with results
+        ax2.text(0.5, 0.95, f'Estimated π: {pi_estimate:.6f}', 
+                transform=ax2.transAxes, ha='center', va='top', fontsize=10)
+        ax2.text(0.5, 0.85, f'Actual π: {actual_pi:.6f}', 
+                transform=ax2.transAxes, ha='center', va='top', fontsize=10)
+        ax2.text(0.5, 0.75, f'Error: {error:.6f}', 
+                transform=ax2.transAxes, ha='center', va='top', fontsize=10)
+        ax2.text(0.5, 0.65, f'Accuracy: {100*(1-error/actual_pi):.2f}%', 
+                transform=ax2.transAxes, ha='center', va='top', fontsize=10)
+        
+        plt.tight_layout()
+        plt.show()
+
+def interactive_simulation():
+    """Main interactive function"""
+    simulator = MonteCarloSimulator()
+    
+    print("🎯 Interactive Monte Carlo π Estimator")
+    print("=" * 50)
+    print("This simulation estimates π by throwing random 'darts' at a square with a circle inside.")
+    print("Points inside the circle (red) vs outside (blue) help us estimate π!")
+    print()
+    
+    while True:
+        print("\nOptions:")
+        print("1. Run simulation batch")
+        print("2. Show current results")
+        print("3. Reset simulation")
+        print("4. Auto-run (watch π converge!)")
+        print("5. Exit")
+        
+        try:
+            choice = input("\nEnter your choice (1-5): ").strip()
+            
+            if choice == '1':
+                num_points = int(input("How many points to simulate? (e.g., 1000): "))
+                if num_points > 0:
+                    print(f"Running {num_points:,} simulations...")
+                    simulator.run_batch(num_points)
+                    simulator.plot_results()
+                else:
+                    print("Please enter a positive number!")
+                    
+            elif choice == '2':
+                if simulator.total_points > 0:
+                    simulator.plot_results()
+                else:
+                    print("No simulations run yet! Try option 1 first.")
+                    
+            elif choice == '3':
+                simulator.reset()
+                print("Simulation reset!")
+                
+            elif choice == '4':
+                print("Auto-running simulation! Watch π converge...")
+                print("(This will run several batches automatically)")
+                
+                batch_sizes = [100, 500, 1000, 2000, 5000]
+                for i, batch_size in enumerate(batch_sizes):
+                    print(f"\nBatch {i+1}/5: Adding {batch_size:,} points...")
+                    simulator.run_batch(batch_size)
+                    clear_output(wait=True)
+                    simulator.plot_results()
+                    time.sleep(2)
+                    
+                print("Auto-run complete!")
+                
+            elif choice == '5':
+                print("Thanks for using the Monte Carlo simulator! 🎯")
+                break
+                
+            else:
+                print("Invalid choice! Please enter 1-5.")
+                
+        except ValueError:
+            print("Invalid input! Please enter a valid number.")
+        except KeyboardInterrupt:
+            print("\nSimulation interrupted!")
+            break
+
+# Run the interactive simulation
+if __name__ == "__main__":
+    interactive_simulation()
