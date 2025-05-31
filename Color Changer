@@ -1,0 +1,284 @@
+"""
+Simple Color Changer Program
+============================
+
+This program demonstrates various color manipulation techniques in Python.
+It can convert between color formats, modify colors, and generate random colors.
+
+Author: Assistant
+Date: 2025
+
+HOW TO RUN:
+-----------
+1. Save this file as 'color_changer.py'
+2. Open terminal/command prompt
+3. Navigate to the file location
+4. Run: python color_changer.py
+5. Follow the interactive menu
+
+REQUIREMENTS:
+-------------
+- Python 3.x (no external libraries needed, uses only built-in modules)
+
+FEATURES:
+---------
+- Convert between HEX and RGB color formats
+- Generate random colors
+- Brighten/darken existing colors
+- Invert colors to get complementary colors
+- Interactive command-line interface
+"""
+
+import random
+
+class ColorChanger:
+    """
+    A class to handle various color operations and conversions.
+    
+    This class provides methods to:
+    - Convert between HEX and RGB formats
+    - Generate random colors
+    - Modify colors (brighten, darken, invert)
+    - Display color information
+    """
+    
+    def __init__(self):
+        """
+        Initialize the ColorChanger with a dictionary of predefined colors.
+        
+        Each color is stored as name: hex_value pairs for easy access.
+        You can add more colors to this dictionary as needed.
+        """
+        self.colors = {
+            'red': '#FF0000',      # Pure red
+            'green': '#00FF00',    # Pure green (lime)
+            'blue': '#0000FF',     # Pure blue
+            'yellow': '#FFFF00',   # Pure yellow
+            'purple': '#800080',   # Purple
+            'orange': '#FFA500',   # Orange
+            'pink': '#FFC0CB',     # Pink
+            'cyan': '#00FFFF',     # Cyan (aqua)
+            'black': '#000000',    # Black
+            'white': '#FFFFFF'     # White
+        }
+    
+    def hex_to_rgb(self, hex_color):
+        """
+        Convert hex color to RGB tuple.
+        
+        Args:
+            hex_color (str): Hex color code like '#FF0000' or 'FF0000'
+            
+        Returns:
+            tuple: RGB values as (red, green, blue) where each value is 0-255
+            
+        Example:
+            hex_to_rgb('#FF0000') returns (255, 0, 0) for red
+        """
+        # Remove the '#' symbol if present
+        hex_color = hex_color.lstrip('#')
+        
+        # Convert each pair of hex digits to decimal
+        # [0:2] gets first two chars (red), [2:4] gets next two (green), [4:6] gets last two (blue)
+        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+    
+    def rgb_to_hex(self, r, g, b):
+        """
+        Convert RGB values to hex color.
+        
+        Args:
+            r (int): Red value (0-255)
+            g (int): Green value (0-255)  
+            b (int): Blue value (0-255)
+            
+        Returns:
+            str: Hex color code like '#ff0000'
+            
+        Example:
+            rgb_to_hex(255, 0, 0) returns '#ff0000' for red
+        """
+        # Format each RGB value as 2-digit hex (02x means 2 digits, padded with 0, lowercase hex)
+        return f"#{r:02x}{g:02x}{b:02x}"
+    
+    def get_random_color(self):
+        """
+        Get a random color from predefined colors.
+        
+        Returns:
+            tuple: (color_name, hex_color) pair
+            
+        Example:
+            get_random_color() might return ('red', '#FF0000')
+        """
+        return random.choice(list(self.colors.items()))
+    
+    def generate_random_hex(self):
+        """
+        Generate a completely random hex color.
+        
+        Returns:
+            str: Random hex color like '#a3b5c7'
+            
+        This creates truly random colors by generating random values
+        for red, green, and blue components (0-255 each).
+        """
+        return f"#{random.randint(0, 255):02x}{random.randint(0, 255):02x}{random.randint(0, 255):02x}"
+    
+    def brighten_color(self, hex_color, factor=1.2):
+        """
+        Brighten a color by multiplying RGB values by a factor.
+        
+        Args:
+            hex_color (str): Input hex color like '#FF0000'
+            factor (float): Brightening factor (default 1.2 = 20% brighter)
+            
+        Returns:
+            str: Brightened hex color
+            
+        Note: RGB values are capped at 255 to prevent overflow.
+        """
+        # Convert hex to RGB, multiply by factor, ensure max is 255
+        r, g, b = self.hex_to_rgb(hex_color)
+        r = min(255, int(r * factor))  # min() prevents values > 255
+        g = min(255, int(g * factor))
+        b = min(255, int(b * factor))
+        return self.rgb_to_hex(r, g, b)
+    
+    def darken_color(self, hex_color, factor=0.8):
+        """
+        Darken a color by multiplying RGB values by a factor.
+        
+        Args:
+            hex_color (str): Input hex color like '#FF0000'
+            factor (float): Darkening factor (default 0.8 = 20% darker)
+            
+        Returns:
+            str: Darkened hex color
+            
+        Note: Factor should be < 1.0 to darken (e.g., 0.5 = 50% darker).
+        """
+        # Convert hex to RGB, multiply by factor (no need to cap at 0 since factor < 1)
+        r, g, b = self.hex_to_rgb(hex_color)
+        r = int(r * factor)
+        g = int(g * factor)
+        b = int(b * factor)
+        return self.rgb_to_hex(r, g, b)
+    
+    def invert_color(self, hex_color):
+        """
+        Invert a color to get its complement.
+        
+        Args:
+            hex_color (str): Input hex color like '#FF0000'
+            
+        Returns:
+            str: Inverted hex color
+            
+        How it works: For each RGB component, subtract from 255.
+        Example: Red (255,0,0) becomes Cyan (0,255,255)
+        """
+        r, g, b = self.hex_to_rgb(hex_color)
+        # Invert by subtracting each component from 255
+        return self.rgb_to_hex(255 - r, 255 - g, 255 - b)
+    
+    def display_color_info(self, hex_color, name=None):
+        """
+        Display comprehensive information about a color.
+        
+        Args:
+            hex_color (str): Hex color to display info for
+            name (str, optional): Name/description of the color
+            
+        This function shows both hex and RGB representations
+        in a nicely formatted way.
+        """
+        r, g, b = self.hex_to_rgb(hex_color)
+        print(f"Color: {name if name else 'Custom'}")
+        print(f"Hex: {hex_color}")
+        print(f"RGB: ({r}, {g}, {b})")
+        print("-" * 30)
+
+def main():
+    changer = ColorChanger()
+    
+    print("🎨 Simple Color Changer 🎨")
+    print("=" * 40)
+    
+    while True:
+        print("\nChoose an option:")
+        print("1. Show random predefined color")
+        print("2. Generate random color")
+        print("3. Brighten a color")
+        print("4. Darken a color")
+        print("5. Invert a color")
+        print("6. Convert RGB to Hex")
+        print("7. Convert Hex to RGB")
+        print("8. Exit")
+        
+        choice = input("\nEnter your choice (1-8): ").strip()
+        
+        if choice == '1':
+            name, hex_color = changer.get_random_color()
+            changer.display_color_info(hex_color, name)
+            
+        elif choice == '2':
+            hex_color = changer.generate_random_hex()
+            changer.display_color_info(hex_color, "Random")
+            
+        elif choice == '3':
+            color = input("Enter hex color (e.g., #FF0000): ").strip()
+            try:
+                brightened = changer.brighten_color(color)
+                print(f"Original: {color}")
+                print(f"Brightened: {brightened}")
+                changer.display_color_info(brightened, "Brightened")
+            except ValueError:
+                print("Invalid hex color format!")
+                
+        elif choice == '4':
+            color = input("Enter hex color (e.g., #FF0000): ").strip()
+            try:
+                darkened = changer.darken_color(color)
+                print(f"Original: {color}")
+                print(f"Darkened: {darkened}")
+                changer.display_color_info(darkened, "Darkened")
+            except ValueError:
+                print("Invalid hex color format!")
+                
+        elif choice == '5':
+            color = input("Enter hex color (e.g., #FF0000): ").strip()
+            try:
+                inverted = changer.invert_color(color)
+                print(f"Original: {color}")
+                print(f"Inverted: {inverted}")
+                changer.display_color_info(inverted, "Inverted")
+            except ValueError:
+                print("Invalid hex color format!")
+                
+        elif choice == '6':
+            try:
+                r = int(input("Enter Red value (0-255): "))
+                g = int(input("Enter Green value (0-255): "))
+                b = int(input("Enter Blue value (0-255): "))
+                hex_color = changer.rgb_to_hex(r, g, b)
+                print(f"RGB({r}, {g}, {b}) = {hex_color}")
+            except ValueError:
+                print("Invalid RGB values!")
+                
+        elif choice == '7':
+            color = input("Enter hex color (e.g., #FF0000): ").strip()
+            try:
+                r, g, b = changer.hex_to_rgb(color)
+                print(f"{color} = RGB({r}, {g}, {b})")
+            except ValueError:
+                print("Invalid hex color format!")
+                
+        elif choice == '8':
+            print("Thanks for using Color Changer! 🌈")
+            break
+            
+        else:
+            print("Invalid choice! Please try again.")
+
+if __name__ == "__main__":
+    main()
