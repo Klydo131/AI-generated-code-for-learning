@@ -1,0 +1,244 @@
+import random
+import string
+import time
+import re
+
+class PlateDetectorSimulator:
+    def __init__(self):
+        # Common license plate formats for different regions
+        self.plate_formats = [
+            "AAA-1234",  # 3 letters, dash, 4 numbers
+            "ABC-123",   # 3 letters, dash, 3 numbers
+            "1234-ABC",  # 4 numbers, dash, 3 letters
+            "AB-1234",   # 2 letters, dash, 4 numbers
+            "123-ABCD",  # 3 numbers, dash, 4 letters
+        ]
+        
+        # Simulate detection confidence levels
+        self.confidence_levels = ["High", "Medium", "Low"]
+        
+        # Database of "known" plates for simulation
+        self.known_plates = [
+            "ABC-1234", "XYZ-5678", "DEF-9012", 
+            "GHI-3456", "JKL-7890", "MNO-2468"
+        ]
+        
+        # Detection statistics
+        self.detection_stats = {
+            "total_detections": 0,
+            "successful_detections": 0,
+            "failed_detections": 0
+        }
+    
+    def generate_random_plate(self, format_pattern=None):
+        """Generate a random license plate based on a format pattern"""
+        if format_pattern is None:
+            format_pattern = random.choice(self.plate_formats)
+        
+        plate = ""
+        for char in format_pattern:
+            if char == 'A':
+                plate += random.choice(string.ascii_uppercase)
+            elif char.isdigit():
+                plate += str(random.randint(0, 9))
+            else:
+                plate += char
+        
+        return plate
+    
+    def simulate_detection_noise(self, plate):
+        """Simulate OCR errors and detection noise"""
+        noise_level = random.uniform(0, 1)
+        
+        if noise_level < 0.1:  # 10% chance of significant noise
+            # Simulate common OCR errors
+            ocr_errors = {
+                'O': '0', '0': 'O', 'I': '1', '1': 'I',
+                'S': '5', '5': 'S', 'B': '8', '8': 'B'
+            }
+            
+            noisy_plate = ""
+            for char in plate:
+                if char in ocr_errors and random.random() < 0.3:
+                    noisy_plate += ocr_errors[char]
+                else:
+                    noisy_plate += char
+            return noisy_plate
+        
+        return plate
+    
+    def detect_plate(self, simulate_camera_input=True):
+        """Simulate the plate detection process"""
+        print("🎥 Scanning for license plates...")
+        time.sleep(random.uniform(0.5, 2.0))  # Simulate processing time
+        
+        # Simulate detection success rate (85% success rate)
+        detection_success = random.random() < 0.85
+        
+        if not detection_success:
+            self.detection_stats["failed_detections"] += 1
+            self.detection_stats["total_detections"] += 1
+            return {
+                "status": "failed",
+                "message": "No plate detected in frame",
+                "confidence": "N/A",
+                "plate_number": None
+            }
+        
+        # Generate or use existing plate
+        if simulate_camera_input:
+            # 30% chance to use a "known" plate from database
+            if random.random() < 0.3:
+                original_plate = random.choice(self.known_plates)
+            else:
+                original_plate = self.generate_random_plate()
+        
+        # Add detection noise
+        detected_plate = self.simulate_detection_noise(original_plate)
+        
+        # Determine confidence level
+        confidence = random.choice(self.confidence_levels)
+        confidence_score = {
+            "High": random.uniform(0.85, 1.0),
+            "Medium": random.uniform(0.60, 0.84),
+            "Low": random.uniform(0.30, 0.59)
+        }[confidence]
+        
+        self.detection_stats["successful_detections"] += 1
+        self.detection_stats["total_detections"] += 1
+        
+        return {
+            "status": "success",
+            "original_plate": original_plate,
+            "detected_plate": detected_plate,
+            "confidence": confidence,
+            "confidence_score": round(confidence_score, 2),
+            "is_known_plate": original_plate in self.known_plates
+        }
+    
+    def validate_plate_format(self, plate):
+        """Validate if detected plate follows common format patterns"""
+        patterns = [
+            r'^[A-Z]{3}-\d{4}$',  # AAA-1234
+            r'^[A-Z]{3}-\d{3}$',   # AAA-123
+            r'^\d{4}-[A-Z]{3}$',   # 1234-AAA
+            r'^[A-Z]{2}-\d{4}$',   # AA-1234
+            r'^\d{3}-[A-Z]{4}$',   # 123-AAAA
+        ]
+        
+        for pattern in patterns:
+            if re.match(pattern, plate):
+                return True
+        return False
+    
+    def check_database(self, plate):
+        """Check if plate exists in database (simulation)"""
+        # Simulate database lookup time
+        time.sleep(random.uniform(0.1, 0.5))
+        
+        database_entries = {
+            "ABC-1234": {"owner": "John Doe", "status": "Valid", "vehicle": "Toyota Camry"},
+            "XYZ-5678": {"owner": "Jane Smith", "status": "Valid", "vehicle": "Honda Civic"},
+            "DEF-9012": {"owner": "Bob Johnson", "status": "Expired", "vehicle": "Ford F-150"},
+            "GHI-3456": {"owner": "Alice Brown", "status": "Stolen", "vehicle": "BMW X5"},
+        }
+        
+        return database_entries.get(plate, {"status": "Not Found"})
+    
+    def run_detection_cycle(self, num_detections=1):
+        """Run multiple detection cycles"""
+        print(f"🚗 Starting {num_detections} detection cycle(s)...\n")
+        
+        results = []
+        for i in range(num_detections):
+            print(f"--- Detection #{i+1} ---")
+            result = self.detect_plate()
+            
+            if result["status"] == "success":
+                print(f"✅ Plate detected: {result['detected_plate']}")
+                print(f"📊 Confidence: {result['confidence']} ({result['confidence_score']})")
+                
+                # Validate format
+                is_valid_format = self.validate_plate_format(result['detected_plate'])
+                print(f"📋 Format valid: {'Yes' if is_valid_format else 'No'}")
+                
+                # Check database if format is valid
+                if is_valid_format:
+                    db_info = self.check_database(result['detected_plate'])
+                    print(f"🗃️  Database status: {db_info['status']}")
+                    if 'owner' in db_info:
+                        print(f"👤 Owner: {db_info['owner']}")
+                        print(f"🚙 Vehicle: {db_info['vehicle']}")
+                
+                # Show if there was OCR noise
+                if 'original_plate' in result and result['original_plate'] != result['detected_plate']:
+                    print(f"⚠️  OCR Noise detected - Original: {result['original_plate']}")
+                
+            else:
+                print(f"❌ {result['message']}")
+            
+            results.append(result)
+            print()
+        
+        return results
+    
+    def show_statistics(self):
+        """Display detection statistics"""
+        stats = self.detection_stats
+        total = stats["total_detections"]
+        
+        if total == 0:
+            print("📈 No detections performed yet.")
+            return
+        
+        success_rate = (stats["successful_detections"] / total) * 100
+        
+        print("📊 Detection Statistics:")
+        print(f"   Total attempts: {total}")
+        print(f"   Successful: {stats['successful_detections']}")
+        print(f"   Failed: {stats['failed_detections']}")
+        print(f"   Success rate: {success_rate:.1f}%")
+
+def main():
+    # Create detector instance
+    detector = PlateDetectorSimulator()
+    
+    print("🚨 License Plate Detector Simulator Started! 🚨")
+    print("=" * 50)
+    
+    while True:
+        print("\nOptions:")
+        print("1. Single detection")
+        print("2. Multiple detections")
+        print("3. Generate random plate")
+        print("4. Show statistics")
+        print("5. Exit")
+        
+        choice = input("\nEnter your choice (1-5): ").strip()
+        
+        if choice == '1':
+            detector.run_detection_cycle(1)
+        
+        elif choice == '2':
+            try:
+                num = int(input("How many detections? "))
+                detector.run_detection_cycle(num)
+            except ValueError:
+                print("Please enter a valid number.")
+        
+        elif choice == '3':
+            plate = detector.generate_random_plate()
+            print(f"🎲 Random plate generated: {plate}")
+        
+        elif choice == '4':
+            detector.show_statistics()
+        
+        elif choice == '5':
+            print("👋 Goodbye!")
+            break
+        
+        else:
+            print("Invalid choice. Please try again.")
+
+if __name__ == "__main__":
+    main()
