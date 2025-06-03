@@ -1,0 +1,145 @@
+import matplotlib.pyplot as plt
+import numpy as np
+import random
+import time
+from IPython.display import clear_output, display
+import ipywidgets as widgets
+
+class AutoCoinToss:
+    def __init__(self):
+        self.heads_count = 0
+        self.tails_count = 0
+        self.current_result = None
+        self.setup_and_start()
+        
+    def setup_and_start(self):
+        """Setup interface and start immediately"""
+        # Create buttons
+        self.toss_button = widgets.Button(
+            description='🪙 FLIP COIN',
+            button_style='danger',
+            layout=widgets.Layout(width='200px', height='60px'),
+            style={'font_weight': 'bold', 'font_size': '16px'}
+        )
+        
+        self.reset_button = widgets.Button(
+            description='🔄 RESET STATS',
+            button_style='info',
+            layout=widgets.Layout(width='200px', height='60px'),
+            style={'font_weight': 'bold', 'font_size': '16px'}
+        )
+        
+        # Connect buttons
+        self.toss_button.on_click(self.flip_coin)
+        self.reset_button.on_click(self.reset_game)
+        
+        # Create layout
+        self.buttons = widgets.VBox([
+            widgets.HTML("<h2 style='text-align:center; color:#FFD700;'>🪙 COIN TOSS GAME 🪙</h2>"),
+            widgets.HBox([self.toss_button, self.reset_button], 
+                        layout=widgets.Layout(justify_content='center')),
+            widgets.HTML("<p style='text-align:center;'>Click buttons above to play!</p>")
+        ])
+        
+        # Show interface immediately
+        print("🎮 GAME STARTED! Use the buttons below:")
+        display(self.buttons)
+        self.show_current_state()
+        
+    def show_current_state(self):
+        """Show current game state"""
+        plt.close('all')  # Close any existing plots
+        
+        fig, ax = plt.subplots(figsize=(10, 6))
+        fig.patch.set_facecolor('#1a1a2e')
+        ax.set_facecolor('#16213e')
+        ax.set_xlim(-5, 5)
+        ax.set_ylim(-3, 3)
+        ax.set_aspect('equal')
+        ax.axis('off')
+        
+        # Show coin state
+        if self.current_result == 'HEADS':
+            ax.text(0, 0, '👑', fontsize=100, ha='center', va='center')
+            ax.text(0, -1.5, 'HEADS!', fontsize=28, ha='center', 
+                   color='#FFD700', weight='bold')
+        elif self.current_result == 'TAILS':
+            ax.text(0, 0, '🦅', fontsize=100, ha='center', va='center')
+            ax.text(0, -1.5, 'TAILS!', fontsize=28, ha='center', 
+                   color='#C0C0C0', weight='bold')
+        else:
+            ax.text(0, 0, '🪙', fontsize=100, ha='center', va='center')
+            ax.text(0, -1.5, 'Ready to flip!', fontsize=20, ha='center', 
+                   color='#FFFFFF')
+        
+        # Statistics
+        total = self.heads_count + self.tails_count
+        if total > 0:
+            heads_pct = (self.heads_count / total) * 100
+            tails_pct = (self.tails_count / total) * 100
+            stats = f"""📊 STATISTICS
+🎯 Total Flips: {total}
+👑 Heads: {self.heads_count} ({heads_pct:.1f}%)
+🦅 Tails: {self.tails_count} ({tails_pct:.1f}%)"""
+        else:
+            stats = """📊 STATISTICS
+🎯 Total Flips: 0
+👑 Heads: 0 (0%)
+🦅 Tails: 0 (0%)"""
+            
+        ax.text(-4.5, 2.5, stats, fontsize=14, ha='left', va='top', 
+               color='#FFFFFF', 
+               bbox=dict(boxstyle="round,pad=0.5", facecolor='#333333', alpha=0.9))
+        
+        plt.tight_layout()
+        plt.show()
+        
+    def flip_coin(self, button):
+        """Handle coin flip with animation"""
+        # Show spinning
+        plt.close('all')
+        fig, ax = plt.subplots(figsize=(10, 6))
+        fig.patch.set_facecolor('#1a1a2e')
+        ax.set_facecolor('#16213e')
+        ax.set_xlim(-5, 5)
+        ax.set_ylim(-3, 3)
+        ax.set_aspect('equal')
+        ax.axis('off')
+        
+        ax.text(0, 0, '🌀', fontsize=120, ha='center', va='center')
+        ax.text(0, -2, 'FLIPPING...', fontsize=24, ha='center', 
+               color='#FFA500', weight='bold')
+        plt.show()
+        
+        # Wait for effect
+        time.sleep(1.5)
+        
+        # Get result
+        result = random.choice(['HEADS', 'TAILS'])
+        self.current_result = result
+        
+        if result == 'HEADS':
+            self.heads_count += 1
+        else:
+            self.tails_count += 1
+            
+        # Show result
+        self.show_current_state()
+        
+    def reset_game(self, button):
+        """Reset statistics"""
+        self.heads_count = 0
+        self.tails_count = 0
+        self.current_result = None
+        self.show_current_state()
+
+# 🚀 AUTO-START THE GAME!
+print("🎮 STARTING COIN TOSS GAME...")
+print("=" * 50)
+
+# Create and start the game automatically
+game = AutoCoinToss()
+
+print("\n✅ Game is ready! Use the buttons above to play!")
+print("🪙 Click 'FLIP COIN' to toss")
+print("🔄 Click 'RESET STATS' to start over")
