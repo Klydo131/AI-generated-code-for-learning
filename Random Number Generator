@@ -1,0 +1,105 @@
+import random
+import ipywidgets as widgets
+from IPython.display import display, clear_output
+
+class RandomNumberGenerator:
+    def __init__(self):
+        self.setup_ui()
+        
+    def setup_ui(self):
+        # Title
+        self.title = widgets.HTML("<h2>🎲 Random Number Generator</h2>")
+        
+        # Input fields for range
+        self.min_input = widgets.IntText(
+            value=1,
+            description='Min:',
+            style={'description_width': 'initial'}
+        )
+        
+        self.max_input = widgets.IntText(
+            value=100,
+            description='Max:',
+            style={'description_width': 'initial'}
+        )
+        
+        # Buttons
+        self.generate_btn = widgets.Button(
+            description='Generate Random Number',
+            button_style='primary',
+            layout=widgets.Layout(width='200px', height='40px')
+        )
+        
+        self.multiple_btn = widgets.Button(
+            description='Generate 5 Numbers',
+            button_style='info',
+            layout=widgets.Layout(width='200px', height='40px')
+        )
+        
+        self.clear_btn = widgets.Button(
+            description='Clear Results',
+            button_style='warning',
+            layout=widgets.Layout(width='200px', height='40px')
+        )
+        
+        # Output area
+        self.output = widgets.Output()
+        
+        # Event handlers
+        self.generate_btn.on_click(self.generate_single)
+        self.multiple_btn.on_click(self.generate_multiple)
+        self.clear_btn.on_click(self.clear_output)
+        
+        # Layout
+        self.range_box = widgets.HBox([self.min_input, self.max_input])
+        self.button_box = widgets.HBox([
+            self.generate_btn, 
+            self.multiple_btn, 
+            self.clear_btn
+        ])
+        
+        self.ui = widgets.VBox([
+            self.title,
+            widgets.HTML("<p>Set your range and click a button to generate random numbers!</p>"),
+            self.range_box,
+            self.button_box,
+            self.output
+        ])
+    
+    def generate_single(self, btn):
+        min_val = self.min_input.value
+        max_val = self.max_input.value
+        
+        if min_val > max_val:
+            with self.output:
+                print("❌ Error: Minimum value cannot be greater than maximum value!")
+            return
+        
+        num = random.randint(min_val, max_val)
+        with self.output:
+            print(f"🎯 Random number: {num}")
+    
+    def generate_multiple(self, btn):
+        min_val = self.min_input.value
+        max_val = self.max_input.value
+        
+        if min_val > max_val:
+            with self.output:
+                print("❌ Error: Minimum value cannot be greater than maximum value!")
+            return
+        
+        numbers = [random.randint(min_val, max_val) for _ in range(5)]
+        with self.output:
+            print(f"🎲 Five random numbers: {numbers}")
+    
+    def clear_output(self, btn):
+        self.output.clear_output()
+        with self.output:
+            print("✨ Output cleared!")
+    
+    def display(self):
+        display(self.ui)
+
+# Create and display the random number generator
+rng = RandomNumberGenerator()
+rng.display()
