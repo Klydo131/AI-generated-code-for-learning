@@ -1,0 +1,41 @@
+import random
+
+print("=== Random Number Sorter ===")
+print("This program will generate random numbers and sort them!")
+
+# Get user input
+try:
+    count = int(input("How many random numbers do you want? "))
+    min_num = int(input("What's the minimum number? "))
+    max_num = int(input("What's the maximum number? "))
+    
+    # Check if inputs make sense
+    if count <= 0:
+        print("Please enter a positive number for count!")
+    elif min_num >= max_num:
+        print("Minimum should be less than maximum!")
+    else:
+        # Generate random numbers
+        numbers = []
+        for i in range(count):
+            random_num = random.randint(min_num, max_num)
+            numbers.append(random_num)
+        
+        # Show original numbers
+        print(f"\nOriginal random numbers: {numbers}")
+        
+        # Sort ascending (smallest to largest)
+        ascending = sorted(numbers)
+        print(f"Ascending order: {ascending}")
+        
+        # Sort descending (largest to smallest)
+        descending = sorted(numbers, reverse=True)
+        print(f"Descending order: {descending}")
+        
+        # Ask if user wants to try again
+        again = input("\nDo you want to try again? (yes/no): ")
+        if again.lower() in ['yes', 'y']:
+            print("\nRestart the program to try again!")
+
+except ValueError:
+    print("Please enter valid numbers only!")
