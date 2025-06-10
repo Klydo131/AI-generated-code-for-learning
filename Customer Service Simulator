@@ -1,0 +1,195 @@
+import datetime
+from typing import List, Dict
+
+class CustomerServiceSimulator:
+    def __init__(self):
+        self.questions = []
+        self.max_questions = 10
+        self.responses = {
+            'greeting': [
+                "Hello! Welcome to our customer service. How can I help you today?",
+                "Hi there! What can I assist you with?",
+                "Good day! How may I help you?"
+            ],
+            'billing': [
+                "I understand you have a billing question. Let me help you with that.",
+                "For billing issues, I recommend checking your account dashboard first.",
+                "I can help resolve billing concerns. Can you provide more details?"
+            ],
+            'technical': [
+                "I see you're experiencing technical difficulties. Let's troubleshoot this together.",
+                "Technical issues can be frustrating. I'm here to help resolve this.",
+                "Let me guide you through some technical support steps."
+            ],
+            'product': [
+                "I'd be happy to help you with product information.",
+                "Let me provide you with details about our products and services.",
+                "What specific product information are you looking for?"
+            ],
+            'default': [
+                "Thank you for your question. I'm here to help in any way I can.",
+                "I understand your concern. Let me see how I can assist you.",
+                "That's a great question. Let me help you find the right answer."
+            ]
+        }
+    
+    def categorize_question(self, question: str) -> str:
+        """Simple keyword-based categorization"""
+        question_lower = question.lower()
+        
+        if any(word in question_lower for word in ['bill', 'payment', 'charge', 'refund', 'invoice']):
+            return 'billing'
+        elif any(word in question_lower for word in ['bug', 'error', 'not working', 'broken', 'technical', 'login']):
+            return 'technical'
+        elif any(word in question_lower for word in ['product', 'feature', 'service', 'plan', 'subscription']):
+            return 'product'
+        elif any(word in question_lower for word in ['hello', 'hi', 'help', 'support']):
+            return 'greeting'
+        else:
+            return 'default'
+    
+    def generate_response(self, category: str, question_num: int) -> str:
+        """Generate appropriate response based on category"""
+        import random
+        responses = self.responses.get(category, self.responses['default'])
+        base_response = random.choice(responses)
+        
+        # Add question tracking info
+        tracking_info = f"\n[Question {question_num}/{self.max_questions} tracked]"
+        return base_response + tracking_info
+    
+    def add_question(self, question: str) -> Dict:
+        """Add a new question and generate response"""
+        if len(self.questions) >= self.max_questions:
+            return {
+                'status': 'limit_reached',
+                'message': f"Maximum number of questions ({self.max_questions}) reached. Session complete!",
+                'total_questions': len(self.questions)
+            }
+        
+        # Create question entry
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        category = self.categorize_question(question)
+        question_num = len(self.questions) + 1
+        
+        question_entry = {
+            'id': question_num,
+            'question': question,
+            'category': category,
+            'timestamp': timestamp,
+            'response': self.generate_response(category, question_num)
+        }
+        
+        self.questions.append(question_entry)
+        
+        return {
+            'status': 'success',
+            'response': question_entry['response'],
+            'category': category,
+            'question_id': question_num,
+            'remaining': self.max_questions - len(self.questions)
+        }
+    
+    def get_summary(self) -> Dict:
+        """Get summary of all questions"""
+        if not self.questions:
+            return {'message': 'No questions have been asked yet.'}
+        
+        categories = {}
+        for q in self.questions:
+            cat = q['category']
+            categories[cat] = categories.get(cat, 0) + 1
+        
+        return {
+            'total_questions': len(self.questions),
+            'categories': categories,
+            'questions': self.questions
+        }
+    
+    def display_questions(self):
+        """Display all questions in a formatted way"""
+        if not self.questions:
+            print("📝 No questions have been asked yet.")
+            return
+        
+        print(f"📋 Customer Service Session Summary ({len(self.questions)}/{self.max_questions} questions)")
+        print("=" * 60)
+        
+        for q in self.questions:
+            print(f"\n🔸 Question {q['id']} [{q['category'].upper()}] - {q['timestamp']}")
+            print(f"   Q: {q['question']}")
+            print(f"   A: {q['response'].split('[Question')[0].strip()}")
+        
+        # Category breakdown
+        categories = {}
+        for q in self.questions:
+            cat = q['category']
+            categories[cat] = categories.get(cat, 0) + 1
+        
+        print(f"\n📊 Question Categories:")
+        for cat, count in categories.items():
+            print(f"   • {cat.title()}: {count}")
+
+def run_customer_service_simulator():
+    """Main function to run the simulator"""
+    print("🎯 Customer Service Simulator")
+    print("=" * 40)
+    print("This simulator will track up to 10 customer questions.")
+    print("Type 'summary' to see all questions, 'quit' to exit.\n")
+    
+    simulator = CustomerServiceSimulator()
+    
+    while True:
+        try:
+            user_input = input("👤 Customer: ").strip()
+            
+            if not user_input:
+                print("⚠️  Please enter a question or command.")
+                continue
+            
+            if user_input.lower() == 'quit':
+                print("\n👋 Thank you for using our customer service simulator!")
+                simulator.display_questions()
+                break
+            
+            if user_input.lower() == 'summary':
+                simulator.display_questions()
+                continue
+            
+            # Process the question
+            result = simulator.add_question(user_input)
+            
+            if result['status'] == 'limit_reached':
+                print(f"\n🎉 {result['message']}")
+                simulator.display_questions()
+                break
+            else:
+                print(f"🤖 Agent: {result['response']}")
+                if result['remaining'] > 0:
+                    print(f"📊 Questions remaining: {result['remaining']}")
+        
+        except KeyboardInterrupt:
+            print("\n\n👋 Session ended. Here's your summary:")
+            simulator.display_questions()
+            break
+        except Exception as e:
+            print(f"⚠️  An error occurred: {e}")
+
+# For Jupyter/Colab usage - you can also create an instance directly
+def create_simulator():
+    """Factory function to create a new simulator instance"""
+    return CustomerServiceSimulator()
+
+# Example usage for interactive mode
+if __name__ == "__main__":
+    run_customer_service_simulator()
+
+# For Jupyter notebook users, you can run this cell and then use:
+# simulator = create_simulator()
+# result = simulator.add_question("Your question here")
+# print(result['response'])
+# simulator.display_questions()
+
+print("✅ Customer Service Simulator loaded successfully!")
+print("\nTo start the interactive simulator, run: run_customer_service_simulator()")
+print("For manual control, use: simulator = create_simulator()")
