@@ -1,0 +1,83 @@
+# Number Storage Visualizer
+# A simple program that stores numbers and shows how many you've entered
+
+import matplotlib.pyplot as plt
+
+def main():
+    # This is our "storage library" - a list to hold all the numbers
+    number_storage = []
+    
+    print("Welcome to the Number Storage Visualizer!")
+    print("Enter numbers one by one. Type 'done' when you're finished.")
+    print("-" * 50)
+    
+    # Keep asking for numbers until user says "done"
+    while True:
+        user_input = input("Enter a number (or 'done' to finish): ")
+        
+        # Check if user wants to stop
+        if user_input.lower() == 'done':
+            break
+        
+        # Try to convert input to a number
+        try:
+            number = float(user_input)  # float allows decimal numbers
+            number_storage.append(number)  # Add to our storage
+            print(f"Added {number} to storage. Total numbers stored: {len(number_storage)}")
+        except ValueError:
+            print("That's not a valid number. Please try again.")
+    
+    # Show what we collected
+    print("\n" + "=" * 50)
+    print("STORAGE SUMMARY")
+    print("=" * 50)
+    print(f"Total numbers stored: {len(number_storage)}")
+    print(f"Your numbers: {number_storage}")
+    
+    if number_storage:  # Only show stats if we have numbers
+        print(f"Smallest number: {min(number_storage)}")
+        print(f"Largest number: {max(number_storage)}")
+        print(f"Average: {sum(number_storage) / len(number_storage):.2f}")
+        
+        # Create a simple visualization
+        create_visualization(number_storage)
+    else:
+        print("No numbers were stored!")
+
+def create_visualization(numbers):
+    """Create a simple bar chart showing the numbers"""
+    print("\nCreating visualization...")
+    
+    # Create a simple bar chart
+    plt.figure(figsize=(10, 6))
+    
+    # Create x-axis labels (just position numbers: 1st, 2nd, 3rd, etc.)
+    positions = [f"#{i+1}" for i in range(len(numbers))]
+    
+    # Create the bar chart
+    bars = plt.bar(positions, numbers, color='skyblue', edgecolor='navy')
+    
+    # Add value labels on top of each bar
+    for bar, value in zip(bars, numbers):
+        plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + max(numbers)*0.01, 
+                f'{value}', ha='center', va='bottom')
+    
+    # Add title and labels
+    plt.title(f'Your {len(numbers)} Stored Numbers', fontsize=16, fontweight='bold')
+    plt.xlabel('Order Entered', fontsize=12)
+    plt.ylabel('Number Value', fontsize=12)
+    
+    # Add a grid for easier reading
+    plt.grid(axis='y', alpha=0.3)
+    
+    # Adjust layout to prevent label cutoff
+    plt.tight_layout()
+    
+    # Show the chart
+    plt.show()
+    
+    print("Visualization complete!")
+
+# Run the program
+if __name__ == "__main__":
+    main()
