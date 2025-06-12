@@ -1,0 +1,142 @@
+import random
+
+def get_computer_choice():
+    """
+    This function generates the computer's choice randomly.
+    
+    Returns:
+        str: Either 'rock', 'paper', or 'scissors'
+    """
+    choices = ['rock', 'paper', 'scissors']
+    return random.choice(choices)
+
+def get_user_choice():
+    """
+    This function gets the user's input and validates it.
+    It keeps asking until the user enters a valid choice.
+    
+    Returns:
+        str: The user's validated choice
+    """
+    valid_choices = ['rock', 'paper', 'scissors']
+    
+    while True:
+        user_input = input("Enter your choice (rock/paper/scissors): ").lower().strip()
+        
+        if user_input in valid_choices:
+            return user_input
+        else:
+            print("Invalid choice! Please enter 'rock', 'paper', or 'scissors'.")
+
+def determine_winner(user_choice, computer_choice):
+    """
+    This function determines who wins the game based on the choices.
+    
+    Args:
+        user_choice (str): The user's choice
+        computer_choice (str): The computer's choice
+    
+    Returns:
+        str: Either 'user', 'computer', or 'tie'
+    """
+    # If both choices are the same, it's a tie
+    if user_choice == computer_choice:
+        return 'tie'
+    
+    # Define winning conditions for the user
+    # Each key beats its corresponding value
+    winning_combinations = {
+        'rock': 'scissors',     # Rock crushes scissors
+        'paper': 'rock',        # Paper covers rock
+        'scissors': 'paper'     # Scissors cut paper
+    }
+    
+    # Check if user wins
+    if winning_combinations[user_choice] == computer_choice:
+        return 'user'
+    else:
+        return 'computer'
+
+def display_result(user_choice, computer_choice, winner):
+    """
+    This function displays the results of the game round.
+    
+    Args:
+        user_choice (str): What the user chose
+        computer_choice (str): What the computer chose
+        winner (str): Who won the round
+    """
+    print(f"\nYou chose: {user_choice.capitalize()}")
+    print(f"Computer chose: {computer_choice.capitalize()}")
+    print("-" * 30)
+    
+    if winner == 'tie':
+        print("It's a tie! 🤝")
+    elif winner == 'user':
+        print("You win! 🎉")
+    else:
+        print("Computer wins! 🤖")
+
+def play_rock_paper_scissors():
+    """
+    Main function that runs the complete Rock Paper Scissors game.
+    This handles the game loop and keeps track of scores.
+    """
+    print("🎮 Welcome to Rock, Paper, Scissors! 🎮")
+    print("=" * 40)
+    
+    # Initialize score counters
+    user_score = 0
+    computer_score = 0
+    ties = 0
+    
+    # Main game loop
+    while True:
+        print(f"\nCurrent Score:")
+        print(f"You: {user_score} | Computer: {computer_score} | Ties: {ties}")
+        print("-" * 40)
+        
+        # Get choices from user and computer
+        user_choice = get_user_choice()
+        computer_choice = get_computer_choice()
+        
+        # Determine the winner
+        winner = determine_winner(user_choice, computer_choice)
+        
+        # Display the results
+        display_result(user_choice, computer_choice, winner)
+        
+        # Update scores based on the winner
+        if winner == 'user':
+            user_score += 1
+        elif winner == 'computer':
+            computer_score += 1
+        else:
+            ties += 1
+        
+        # Ask if the user wants to play again
+        play_again = input("\nDo you want to play again? (yes/no): ").lower().strip()
+        
+        if play_again not in ['yes', 'y']:
+            break
+    
+    # Display final scores
+    print("\n" + "=" * 40)
+    print("🏆 FINAL SCORES 🏆")
+    print(f"You: {user_score}")
+    print(f"Computer: {computer_score}")
+    print(f"Ties: {ties}")
+    
+    # Determine overall winner
+    if user_score > computer_score:
+        print("🎉 Congratulations! You won overall! 🎉")
+    elif computer_score > user_score:
+        print("🤖 Computer wins overall! Better luck next time! 🤖")
+    else:
+        print("🤝 It's a tie overall! Great game! 🤝")
+    
+    print("Thanks for playing! 👋")
+
+# Run the game
+if __name__ == "__main__":
+    play_rock_paper_scissors()
