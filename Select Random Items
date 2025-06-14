@@ -1,0 +1,33 @@
+# prompt: make a code that randomly select 5 rare items, 5 common items, and 3 mythic items. There must be a user interface where you can interact with the program
+
+import ipywidgets as widgets
+from IPython.display import display
+import random
+
+# Sample item lists (replace with your actual data)
+rare_items = ["Rare Sword", "Rare Shield", "Rare Bow", "Rare Potion", "Rare Armor", "Rare Ring"]
+common_items = ["Common Knife", "Common Club", "Common Staff", "Common Bandage", "Common Clothes", "Common Ring"]
+mythic_items = ["Mythic Blade of Legends", "Mythic Shield of Ages", "Mythic Staff of Creation"]
+
+def select_items(b):
+  """Selects random items based on predefined counts."""
+  selected_rare = random.sample(rare_items, min(5, len(rare_items)))
+  selected_common = random.sample(common_items, min(5, len(common_items)))
+  selected_mythic = random.sample(mythic_items, min(3, len(mythic_items)))
+
+  output.clear_output()
+  with output:
+    print("Selected Items:")
+    print("Rare:", selected_rare)
+    print("Common:", selected_common)
+    print("Mythic:", selected_mythic)
+
+# Create a button for the user interface
+select_button = widgets.Button(description="Select Random Items")
+output = widgets.Output()
+
+# Link the button click to the function
+select_button.on_click(select_items)
+
+# Display the button and output area
+display(select_button, output)
