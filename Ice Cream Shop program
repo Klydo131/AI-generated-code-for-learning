@@ -1,0 +1,128 @@
+
+import collections
+import random
+# Define the ice cream flavors and toppings with their costs
+flavors = {
+    1: {"name": "Vanilla", "cost": 2.50},
+    2: {"name": "Chocolate", "cost": 2.75},
+    3: {"name": "Strawberry", "cost": 2.50},
+    4: {"name": "Mint Chocolate Chip", "cost": 3.00},
+    5: {"name": "Cookie Dough", "cost": 3.25}
+}
+toppings = {
+    1: {"name": "Sprinkles", "cost": 0.50},
+    2: {"name": "Chocolate Sauce", "cost": 0.75},
+    3: {"name": "Caramel Sauce", "cost": 0.75},
+    4: {"name": "Whipped Cream", "cost": 0.50},
+    5: {"name": "Cherries", "cost": 0.25},
+    6: {"name": "Nuts", "cost": 1.00},
+    7: {"name": "Gummy Bears", "cost": 0.60},
+    8: {"name": "Oreos", "cost": 0.90},
+    9: {"name": "Brownie Pieces", "cost": 1.20},
+    10: {"name": "Marshmallows", "cost": 0.40}
+}
+# Initialize statistics counters
+flavor_counts = collections.Counter()
+topping_counts = collections.Counter()
+def display_menu():
+    """Displays the available flavors and toppings with their costs."""
+    print("\nWelcome to the Creative Ice Cream Shop!")
+    print("Here are our delicious flavors:")
+    for key, value in flavors.items():
+        print(f"{key}: {value['name']} - ${value['cost']:.2f}")
+    print("\nAnd our amazing toppings (choose up to 2):")
+    for key, value in toppings.items():
+        print(f"{key}: {value['name']} - ${value['cost']:.2f}")
+def get_user_order():
+    """Gets the user's ice cream and topping selections."""
+    order = []
+    while True:
+        try:
+            flavor_choice = int(input("Enter the number of your desired flavor (or 0 to finish adding ice cream): "))
+            if flavor_choice == 0:
+                break
+            if flavor_choice not in flavors:
+                print("Invalid flavor number. Please try again.")
+                continue
+            selected_flavor = flavors[flavor_choice]
+            selected_toppings = []
+            print("You can choose up to 2 toppings.")
+            for i in range(2):
+                topping_choice = int(input(f"Enter the number of topping {i+1} (or 0 for no more toppings): "))
+                if topping_choice == 0:
+                    break
+                if topping_choice not in toppings:
+                    print("Invalid topping number. Please try again.")
+                    continue
+                selected_toppings.append(toppings[topping_choice])
+            order.append({"flavor": selected_flavor, "toppings": selected_toppings})
+            # Update statistics
+            flavor_counts[selected_flavor['name']] += 1
+            for topping in selected_toppings:
+                topping_counts[topping['name']] += 1
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+    return order
+def confirm_order(order):
+    """Confirms the user's order and calculates the total cost."""
+    if not order:
+        print("Your order is empty.")
+        return False
+    print("\nHere is your order summary:")
+    total_cost = 0
+    for item in order:
+        flavor = item["flavor"]
+        toppings = item["toppings"]
+        item_cost = flavor["cost"]
+        print(f"- {flavor['name']} (${flavor['cost']:.2f})")
+        if toppings:
+            print("  Toppings:")
+            for topping in toppings:
+                print(f"  - {topping['name']} (${topping['cost']:.2f})")
+                item_cost += topping['cost']
+        total_cost += item_cost
+    print(f"\nTotal cost: ${total_cost:.2f}")
+    confirm = input("Is your order correct? (yes/no): ").lower()
+    return confirm == 'yes'
+def process_payment(order):
+    """Simulates processing payment."""
+    if not order:
+        print("No order to process.")
+        return
+    print("\nProcessing your payment...")
+    # In a real application, you would integrate a payment gateway here.
+    print("Payment successful!")
+    print("Thank you for your order!")
+def offer_promo(order):
+    """Offers a promo if the user orders 2 or more ice creams."""
+    if len(order) >= 2:
+        print("\nGreat news! You've ordered 2 or more ice creams.")
+        print("Here's a special promo for you: Get a random free topping on your next order!")
+def show_kpis():
+    """Displays the statistical KPIs."""
+    print("\n--- Ice Cream Shop Statistics ---")
+    print("Best Selling Flavors:")
+    for flavor, count in flavor_counts.most_common():
+        print(f"- {flavor}: {count} orders")
+    print("\nBest Selling Toppings:")
+    for topping, count in topping_counts.most_common():
+        print(f"- {topping}: {count} orders")
+def main():
+    """Main function to run the ice cream shop program."""
+    while True:
+        display_menu()
+        user_order = get_user_order()
+        if user_order:
+            if confirm_order(user_order):
+                process_payment(user_order)
+                offer_promo(user_order)
+            else:
+                print("Order cancelled.")
+        else:
+            print("No items in your order.")
+        another_order = input("Would you like to place another order? (yes/no): ").lower()
+        if another_order != 'yes':
+            show_kpis()
+            break
+if __name__ == "__main__":
+    main()
