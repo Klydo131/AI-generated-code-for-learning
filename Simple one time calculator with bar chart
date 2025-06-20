@@ -1,0 +1,46 @@
+# prompt: Can you build a simple calculator in using python with visual charts?
+
+import matplotlib.pyplot as plt
+
+def simple_calculator():
+    """A simple calculator that takes two numbers and an operation and displays a chart."""
+
+    try:
+        num1 = float(input("Enter the first number: "))
+        num2 = float(input("Enter the second number: "))
+        operation = input("Enter the operation (+, -, *, /): ")
+
+        if operation == '+':
+            result = num1 + num2
+            title = f"Addition: {num1} + {num2} = {result}"
+        elif operation == '-':
+            result = num1 - num2
+            title = f"Subtraction: {num1} - {num2} = {result}"
+        elif operation == '*':
+            result = num1 * num2
+            title = f"Multiplication: {num1} * {num2} = {result}"
+        elif operation == '/':
+            if num2 == 0:
+                print("Error: Division by zero is not allowed.")
+                return
+            result = num1 / num2
+            title = f"Division: {num1} / {num2} = {result}"
+        else:
+            print("Invalid operation entered.")
+            return
+
+        # Create a simple bar chart to visualize the numbers and result
+        labels = ['Number 1', 'Number 2', 'Result']
+        values = [num1, num2, result]
+
+        plt.figure(figsize=(6, 4))
+        plt.bar(labels, values, color=['blue', 'green', 'red'])
+        plt.ylabel('Value')
+        plt.title(title)
+        plt.show()
+
+    except ValueError:
+        print("Invalid input. Please enter valid numbers.")
+
+# Run the calculator
+simple_calculator()
