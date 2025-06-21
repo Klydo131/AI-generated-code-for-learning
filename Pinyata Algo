@@ -1,0 +1,34 @@
+# prompt: Create a simple algorithm in python that gets the attention of 5 customers  to get Pinyata out of 4 stores.
+
+import random
+
+def get_pinyata_attention(customers, stores):
+  """
+  Simulates getting the attention of customers for Pinyatas in stores.
+
+  Args:
+    customers: A list of customer names.
+    stores: A list of store names.
+
+  Returns:
+    A list of tuples, where each tuple represents a customer and
+    the store they are interested in for a Pinyata.
+  """
+  attention_assignments = []
+  for customer in customers:
+    # Randomly choose a store to direct the customer's attention
+    chosen_store = random.choice(stores)
+    attention_assignments.append((customer, chosen_store))
+    print(f"{customer}, we have Pinyatas available at {chosen_store}! Come check it out!")
+  return attention_assignments
+
+# Example usage:
+customer_list = ["Alice", "Bob", "Charlie", "David", "Eve"]
+store_list = ["Store A", "Store B", "Store C", "Store D"]
+
+customer_attention = get_pinyata_attention(customer_list, store_list)
+
+# You can see the assignments here:
+print("\nCustomer Attention Assignments:")
+for customer, store in customer_attention:
+  print(f"- {customer} is directed to {store}")
